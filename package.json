@@ -6,6 +6,8 @@
   "workspaces": [],
   "scripts": {
     "dev": "npm --prefix agency-manager run dev",
+    "build": "npm --prefix agency-manager run build",
+    "start": "npm --prefix agency-manager run start",
     "agency-manager": "npm --prefix agency-manager run dev",
     "backend": "cd backend && npm run dev",
     "frontend": "cd frontend && npm run dev",
