@@ -161,6 +161,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, readonly Permission[]> = {
   MEMBER: [
     'dashboard.read',
     'accounts.read',
+    'accounts.create',
+    'accounts.update',
     'content.read',
     'content.create',
     'content.update',

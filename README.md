@@ -214,6 +214,8 @@ All administrative and operational routes reside under `/api/*`:
 - `PATCH /api/team/[id]` — Update member role, status, or profile fields.
 - `DELETE /api/team/[id]` — Remove member (restricted by hierarchy & last-owner rule).
 - `GET /api/content` — Paginated content library with platform targets.
+- `GET /api/social-accounts` — List connected social media channels and client accounts.
+- `POST /api/social-accounts` — Connect/add new social media profiles (accessible by Owner, Manager, Admin, and Members).
 - `GET /api/admin/access-control` — Owner/Manager module permission governance.
 - `POST /api/auth/activity` — Security and operational audit log stream.
 

@@ -66,7 +66,12 @@ export async function runSecurityTests(): Promise<void> {
     harness.assert(!hasPermission('ADMIN', 'storage.recover'), 'ADMIN cannot recover storage (OWNER-only)');
     harness.assert(!hasPermission('ADMIN', 'system.admin'), 'ADMIN cannot access system.admin (OWNER-only)');
 
-    // 5. OWNER: Full access to all permissions
+    // 5. MEMBER: Operational privileges including adding accounts, tasks, content, calendar
+    harness.assert(hasPermission('MEMBER', 'accounts.create'), 'MEMBER can create accounts');
+    harness.assert(hasPermission('MEMBER', 'accounts.update'), 'MEMBER can update accounts');
+    harness.assert(!hasPermission('MEMBER', 'accounts.delete'), 'MEMBER cannot delete accounts');
+
+    // 6. OWNER: Full access to all permissions
     for (const p of PERMISSIONS) {
       harness.assert(hasPermission('OWNER', p), `OWNER has ${p}`);
     }

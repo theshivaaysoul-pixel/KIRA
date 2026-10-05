@@ -593,7 +593,8 @@ All endpoints require Firebase authentication. Authorization uses `accounts.*` p
 |---|:---:|:---:|:---:|:---:|
 | **OWNER** | ✅ | ✅ | ✅ | ✅ |
 | **ADMIN** | ✅ | ✅ | ✅ | ✅ |
-| **MANAGER** | ✅ | ❌ | ✅ | ❌ |
+| **MANAGER** | ✅ | ✅ | ✅ | ✅ |
+| **MEMBER** | ✅ | ✅ | ✅ | ❌ |
 | **EDITOR** | ❌ | ❌ | ❌ | ❌ |
 | **DESIGNER** | ❌ | ❌ | ❌ | ❌ |
 | **ANALYST** | ✅ | ❌ | ❌ | ❌ |
