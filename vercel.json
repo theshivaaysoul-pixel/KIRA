@@ -16,15 +16,21 @@
   },
   "rewrites": [
     {
-      "source": "/api/(.*)",
+      "source": "/storage/api/(.*)",
       "destination": {
         "service": "backend"
       }
     },
     {
-      "source": "/(.*)",
+      "source": "/storage/(.*)",
       "destination": {
         "service": "frontend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "agency-manager"
       }
     }
   ]
