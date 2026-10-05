@@ -51,7 +51,11 @@ export function getAdminApp(): App {
   const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (projectId && clientEmail && rawPrivateKey) {
-    const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+    let privateKey = rawPrivateKey.trim();
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+      privateKey = privateKey.slice(1, -1);
+    }
+    privateKey = privateKey.replace(/\\n/g, '\n');
     adminApp = initializeApp({
       credential: cert({ projectId, clientEmail, privateKey }),
       projectId,

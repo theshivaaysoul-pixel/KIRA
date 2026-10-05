@@ -21,17 +21,23 @@ function buildStorageClient(): Storage {
   const rawPrivateKey = process.env.GOOGLE_CLOUD_PRIVATE_KEY;
   const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-  // If a key file path is given, use it
+  // If a key file path is given and exists on disk, use it
   if (keyFilePath) {
     const resolvedPath = path.isAbsolute(keyFilePath)
       ? keyFilePath
       : path.resolve(process.cwd(), keyFilePath);
-    return new Storage({ projectId, keyFilename: resolvedPath });
+    if (fs.existsSync(resolvedPath)) {
+      return new Storage({ projectId, keyFilename: resolvedPath });
+    }
   }
 
   // If inline credentials are provided, use them
   if (clientEmail && rawPrivateKey) {
-    const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+    let privateKey = rawPrivateKey.trim();
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+      privateKey = privateKey.slice(1, -1);
+    }
+    privateKey = privateKey.replace(/\\n/g, '\n');
     return new Storage({
       projectId,
       credentials: { client_email: clientEmail, private_key: privateKey },
