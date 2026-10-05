@@ -1,0 +1,48 @@
+# =============================================================================
+# KIRA Agency Manager — Docker Ignore
+# Exclude dev files, tests, secrets, and caches from Docker build context
+# =============================================================================
+
+# Version control
+.git
+.gitignore
+
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Next.js build and cache
+.next
+out
+build
+coverage
+
+# Environment files and credentials (CRITICAL: NEVER embed in container images)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+service-account*.json
+*-credentials.json
+*-key.json
+
+# Test suites and test artifacts
+tests
+__tests__
+*.test.ts
+*.spec.ts
+scripts/run-all-tests.mjs
+
+# Operating system artifacts
+.DS_Store
+Thumbs.db
+
+# Documentation & IDE
+*.md
+.idea
+.vscode

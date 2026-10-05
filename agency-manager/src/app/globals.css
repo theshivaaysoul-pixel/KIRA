@@ -1,0 +1,842 @@
+/* src/app/globals.css
+   KIRA Agency Manager — Design System
+   Instagram-inspired: clean, white/light surfaces, rounded elements, subtle shadows.
+   Tailwind v4 with CSS custom properties for the theme.
+*/
+
+/* ─── Google Fonts — must come before @import tailwindcss ───────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ─── CSS Custom Properties (Design Tokens) ────────────────────────────────── */
+:root {
+  /* Brand */
+  --kira-purple: 124 58 237;       /* violet-600 */
+  --kira-purple-light: 167 139 250; /* violet-400 */
+  --kira-pink: 236 72 153;         /* pink-500  */
+
+  /* Light Mode Surfaces */
+  --bg-base: 250 250 250;          /* near-white page bg */
+  --bg-surface: 255 255 255;       /* card / panel bg */
+  --bg-subtle: 243 244 246;        /* subtle section bg */
+  --bg-hover: 238 240 244;
+  --card: 255 255 255;
+  --card-bg: 255 255 255;
+  --card-foreground: 17 24 39;
+  --foreground: 17 24 39;
+  --background: 250 250 250;
+  --muted: 243 244 246;
+  --muted-foreground: 156 163 175;
+  --popover: 255 255 255;
+  --primary: 124 58 237;
+
+  /* Borders */
+  --border: 229 231 235;           /* gray-200 */
+  --border-strong: 209 213 219;    /* gray-300 */
+
+  /* Text */
+  --text-primary: 17 24 39;        /* gray-900 */
+  --text-secondary: 75 85 99;      /* gray-600 */
+  --text-muted: 156 163 175;       /* gray-400 */
+
+  /* Status */
+  --status-ok: 34 197 94;          /* green-500 */
+  --status-error: 239 68 68;       /* red-500 */
+  --status-warn: 234 179 8;        /* yellow-500 */
+  --status-idle: 156 163 175;      /* gray-400 */
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 64px;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+  --transition-slow: 300ms ease;
+}
+
+/* ─── Dark Mode ─────────────────────────────────────────────────────────────── */
+.dark {
+  --bg-base: 9 9 11;               /* zinc-950 */
+  --bg-surface: 24 24 27;          /* zinc-900 */
+  --bg-subtle: 39 39 42;           /* zinc-800 */
+  --bg-hover: 52 52 58;
+
+  --border: 39 39 42;              /* zinc-800 */
+  --border-strong: 63 63 70;       /* zinc-700 */
+
+  --text-primary: 250 250 250;     /* zinc-50 */
+  --text-secondary: 161 161 170;   /* zinc-400 */
+  --text-muted: 113 113 122;       /* zinc-500 */
+
+  /* Solid Dark Surface & Card tokens - 100% opaque zinc-900 */
+  --card: 24 24 27;
+  --card-bg: 24 24 27;
+  --card-foreground: 250 250 250;
+  --foreground: 250 250 250;
+  --background: 9 9 11;
+  --muted: 39 39 42;
+  --muted-foreground: 161 161 170;
+  --popover: 24 24 27;
+  --primary: 167 139 250;
+}
+
+/* ─── Base Styles ───────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: rgb(var(--bg-base));
+  color: rgb(var(--text-primary));
+  font-size: 14px;
+  line-height: 1.5;
+  transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-strong));
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-muted)); }
+
+/* ─── Focus Styles ─────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgb(var(--kira-purple));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Global Card Rounding & Utilities (All Pages) ─────────────────────────── */
+.card,
+.card-flush,
+.card-bleed,
+.card-hover,
+article.card,
+.login-card {
+  background: rgb(var(--bg-surface));
+  border: 1px solid rgb(var(--border));
+  border-radius: 1.25rem !important; /* 20px - clean, modern rounded card design */
+  box-shadow: var(--shadow-sm);
+  padding: 1.5rem; /* 24px - ensures generous distance between card outer linings and inner content */
+  box-sizing: border-box;
+  transition: all var(--transition-base), box-shadow 0.3s ease-in-out, border-color 0.25s ease-in-out, transform 0.2s ease;
+}
+
+/* Flush card for full-bleed tables or custom padding only when explicitly specified */
+.card-flush,
+.card-bleed {
+  padding: 0;
+}
+
+.card-hover {
+  transition: box-shadow var(--transition-base), transform var(--transition-base), border-color 0.25s ease;
+}
+.card-hover:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* ─── Global Spacing Standard for Cards & Tabs ────────────────────────────── */
+.card-grid {
+  display: grid;
+  gap: 1.5rem; /* 24px minimum gap */
+}
+@media (min-width: 640px) {
+  .card-grid {
+    gap: 2rem; /* 32px generous standard */
+  }
+}
+
+.tab-nav,
+.tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  .tab-nav,
+  .tabs-row {
+    gap: 1rem;
+  }
+}
+
+.text-primary   { color: rgb(var(--text-primary)); }
+.text-secondary { color: rgb(var(--text-secondary)); }
+.text-muted     { color: rgb(var(--text-muted)); }
+
+.surface { background: rgb(var(--bg-surface)); }
+.subtle  { background: rgb(var(--bg-subtle)); }
+
+/* ─── Status Dot ────────────────────────────────────────────────────────────── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot-ok      { background: rgb(var(--status-ok)); }
+.status-dot-error   { background: rgb(var(--status-error)); }
+.status-dot-warn    { background: rgb(var(--status-warn)); }
+.status-dot-idle    { background: rgb(var(--status-idle)); }
+.status-dot-pulse   { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* ─── Spinner ───────────────────────────────────────────────────────────────── */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgb(var(--border));
+  border-top-color: rgb(var(--kira-purple));
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── App Shell Layout ──────────────────────────────────────────────────────── */
+.app-shell-main {
+  width: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background-color: transparent;
+  min-width: 0;
+  transition: margin-right var(--transition-slow), width var(--transition-slow);
+}
+
+@media (min-width: 769px) {
+  .app-shell-main {
+    margin-right: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
+  }
+  .app-shell-main.sidebar-closed {
+    margin-right: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* ─── Sidebar ───────────────────────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-width);
+  height: 100dvh;
+  background: rgb(var(--bg-surface));
+  border-left: 1px solid rgb(var(--border));
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 40;
+  transition: transform var(--transition-slow), width var(--transition-slow);
+}
+
+@media (min-width: 769px) {
+  .sidebar.closed {
+    transform: translateX(100%);
+    pointer-events: none;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(100%);
+    z-index: 50;
+    box-shadow: -8px 0 32px rgb(0 0 0 / 0.25);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.45);
+    z-index: 49;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  color: rgb(var(--text-secondary));
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover {
+  background: rgb(var(--bg-subtle));
+  color: rgb(var(--text-primary));
+}
+.nav-item.active {
+  background: rgb(var(--kira-purple) / 0.1);
+  color: rgb(var(--kira-purple));
+}
+.nav-item.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ─── Global Button Rounding & Generous Sizing (All Pages) ───────────────────── */
+button:not(.card):not(.card-bleed):not(.card-flush):not([role="menuitem"]):not(.nav-item),
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger,
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  border-radius: 9999px !important;
+  transition: all var(--transition-base), box-shadow 0.25s ease-in-out, transform 0.15s ease;
+}
+
+/* Ensure text & action buttons have generous padding so letters never touch curved borders */
+button:not(.card):not(.card-bleed):not(.card-flush):not([role="menuitem"]):not(.nav-item):not(.btn-icon):not([aria-label*="close"]):not([aria-label*="Close"]):not(.tab-icon-only),
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger {
+  min-height: 40px;
+  padding-left: 1.15rem;
+  padding-right: 1.15rem;
+}
+
+/* Primary and header action buttons (e.g., "+ New Content", "+ Connect Account", "+ Add Platform", "+ New Task", "Invite Member") */
+button[class*="bg-blue-600"],
+button[class*="bg-blue-700"],
+button[class*="bg-purple-600"],
+button[class*="bg-purple-700"],
+button[class*="bg-[rgb(var(--primary))]"],
+button[class*="bg-neutral-900"],
+.btn-primary {
+  min-height: 44px;
+  padding-top: 0.625rem !important;
+  padding-bottom: 0.625rem !important;
+  padding-left: 1.375rem !important;
+  padding-right: 1.375rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+}
+
+/* Circular icon-only buttons (like refresh ↻, view toggle, close) */
+button.btn-icon,
+.btn-icon,
+button[aria-label]:empty,
+button:has(> svg:only-child):not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.btn):not([class*="px-"]):not([class*="py-"]):not(:has(span)):not(:has(p)) {
+  min-width: 42px !important;
+  min-height: 42px !important;
+  width: 42px !important;
+  height: 42px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Ensure text action buttons maintain auto width and do not shrink */
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn {
+  width: auto !important;
+  max-width: fit-content;
+}
+
+/* Base button utility classes */
+.btn-primary {
+  background-color: rgb(var(--kira-purple));
+  color: #ffffff;
+  border-color: transparent;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: rgb(var(--kira-purple-light));
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: rgb(var(--text-secondary));
+  border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background-color: rgb(var(--bg-subtle));
+  color: rgb(var(--text-primary));
+}
+
+/* ─── Dark Mode Hover Glow Keyframes ────────────────────────────────────────── */
+@keyframes dark-btn-glow {
+  0% {
+    box-shadow: 0 0 10px rgba(167, 139, 250, 0.45), 0 0 20px rgba(124, 58, 237, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(192, 132, 252, 0.75), 0 0 32px rgba(139, 92, 246, 0.55), 0 0 45px rgba(124, 58, 237, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(167, 139, 250, 0.45), 0 0 20px rgba(124, 58, 237, 0.25);
+  }
+}
+
+@keyframes dark-btn-glow-danger {
+  0% {
+    box-shadow: 0 0 10px rgba(248, 113, 113, 0.45), 0 0 20px rgba(239, 68, 68, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(252, 165, 165, 0.8), 0 0 32px rgba(239, 68, 68, 0.6), 0 0 45px rgba(220, 38, 38, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(248, 113, 113, 0.45), 0 0 20px rgba(239, 68, 68, 0.25);
+  }
+}
+
+@keyframes dark-btn-glow-success {
+  0% {
+    box-shadow: 0 0 10px rgba(52, 211, 153, 0.45), 0 0 20px rgba(16, 185, 129, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(110, 231, 183, 0.8), 0 0 32px rgba(16, 185, 129, 0.6), 0 0 50px rgba(5, 150, 105, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(52, 211, 153, 0.45), 0 0 20px rgba(16, 185, 129, 0.25);
+  }
+}
+
+/* ─── Light Mode Animation for Buttons and Cards (.btn-107 Effect) ────────── */
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* 1. Standalone .btn-107 class */
+.btn-107 {
+  position: relative;
+  padding: 16px 28px;
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 1;
+  border: 1px solid rgb(221, 218, 218);
+  background: white;
+  font-weight: bold;
+  font-size: 16px;
+  color: #1993e4;
+  transition: all 1.2s linear;
+  font-family: Arial, Helvetica, sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-107::after {
+  content: "";
+  position: absolute;
+  background: linear-gradient(to right, #1993e4, #1993e456);
+  border-radius: 30%;
+  height: 96px;
+  width: 96px;
+  animation: spin infinite linear 1.8s;
+  animation-delay: 0;
+  bottom: -38px;
+  right: -112px;
+  transition: all 1.2s linear;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.btn-107:hover {
+  color: #fff;
+  transition-duration: 1.2s;
+}
+
+.btn-107:hover::after {
+  right: -60px;
+  bottom: -92px;
+  width: 256px;
+  height: 256px;
+}
+
+.btn-107 > span,
+.btn-107 > * {
+  position: relative;
+  z-index: 2;
+}
+
+.btn-107:disabled {
+  pointer-events: none;
+  opacity: .65;
+  color: #7e7e7e;
+  background: #dcdcdc;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+/* 2. Global Light Mode Application for Buttons across all pages */
+:root:not(.dark):not([data-theme="dark"]) button:not(.card):not(.card-bleed):not(.card-flush):not([role="menuitem"]):not(.nav-item):not(.no-btn-107),
+:root:not(.dark):not([data-theme="dark"]) .btn:not(.no-btn-107),
+:root:not(.dark):not([data-theme="dark"]) input[type="button"]:not(.no-btn-107),
+:root:not(.dark):not([data-theme="dark"]) input[type="submit"]:not(.no-btn-107) {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+  transition: color 1.2s linear, border-color 1.2s linear, box-shadow 1.2s linear, background-color 1.2s linear;
+}
+
+:root:not(.dark):not([data-theme="dark"]) button:not(.card):not(.card-bleed):not(.card-flush):not([role="menuitem"]):not(.nav-item):not(.no-btn-107)::after,
+:root:not(.dark):not([data-theme="dark"]) .btn:not(.no-btn-107)::after,
+:root:not(.dark):not([data-theme="dark"]) input[type="button"]:not(.no-btn-107)::after,
+:root:not(.dark):not([data-theme="dark"]) input[type="submit"]:not(.no-btn-107)::after {
+  content: "";
+  position: absolute;
+  background: linear-gradient(to right, #1993e4, #1993e456);
+  border-radius: 30%;
+  height: 96px;
+  width: 96px;
+  animation: spin infinite linear 1.8s;
+  animation-delay: 0;
+  bottom: -38px;
+  right: -112px;
+  transition: all 1.2s linear;
+  z-index: 0;
+  pointer-events: none;
+}
+
+:root:not(.dark):not([data-theme="dark"]) button:not(.card):not(.card-bleed):not(.card-flush):not([role="menuitem"]):not(.nav-item):not(.no-btn-107):not(:disabled):hover,
+:root:not(.dark):not([data-theme="dark"]) .btn:not(.no-btn-107):not(:disabled):hover,
+:root:not(.dark):not([data-theme="dark"]) input[type="button"]:not(.no-btn-107):not(:disabled):hover,
+:root:not(.dark):not([data-theme="dark"]) input[type="submit"]:not(.no-btn-107):not(:disabled):hover {
+  color: #fff;
+  transition-duration: 1.2s;
+}
+
+:root:not(.dark):not([data-theme="dark"]) button:not(.card):not(.card-bleed):not(.card-flush):not([role="menuitem"]):not(.nav-item):not(.no-btn-107):not(:disabled):hover::after,
+:root:not(.dark):not([data-theme="dark"]) .btn:not(.no-btn-107):not(:disabled):hover::after,
+:root:not(.dark):not([data-theme="dark"]) input[type="button"]:not(.no-btn-107):not(:disabled):hover::after,
+:root:not(.dark):not([data-theme="dark"]) input[type="submit"]:not(.no-btn-107):not(:disabled):hover::after {
+  right: -60px;
+  bottom: -92px;
+  width: 256px;
+  height: 256px;
+}
+
+:root:not(.dark):not([data-theme="dark"]) button:not(.card):not(.card-bleed):not(.card-flush):not([role="menuitem"]):not(.nav-item):not(.no-btn-107) > *,
+:root:not(.dark):not([data-theme="dark"]) .btn:not(.no-btn-107) > * {
+  position: relative;
+  z-index: 2;
+}
+
+:root:not(.dark):not([data-theme="dark"]) button:disabled,
+:root:not(.dark):not([data-theme="dark"]) .btn:disabled {
+  pointer-events: none;
+  opacity: .65;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+/* 3. Global Light Mode Application for Cards across all pages */
+:root:not(.dark):not([data-theme="dark"]) .card,
+:root:not(.dark):not([data-theme="dark"]) .card-hover,
+:root:not(.dark):not([data-theme="dark"]) article.card,
+:root:not(.dark):not([data-theme="dark"]) .card-flush,
+:root:not(.dark):not([data-theme="dark"]) .card-bleed {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+  transition: all 1.2s linear, box-shadow 0.3s ease-in-out, border-color 0.25s ease-in-out, transform 0.2s ease;
+}
+
+:root:not(.dark):not([data-theme="dark"]) .card::after,
+:root:not(.dark):not([data-theme="dark"]) .card-hover::after,
+:root:not(.dark):not([data-theme="dark"]) article.card::after,
+:root:not(.dark):not([data-theme="dark"]) .card-flush::after,
+:root:not(.dark):not([data-theme="dark"]) .card-bleed::after {
+  content: "";
+  position: absolute;
+  background: linear-gradient(to right, #1993e4, #1993e456);
+  border-radius: 30%;
+  height: 120px;
+  width: 120px;
+  animation: spin infinite linear 1.8s;
+  animation-delay: 0;
+  bottom: -45px;
+  right: -130px;
+  transition: all 1.2s linear;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+:root:not(.dark):not([data-theme="dark"]) .card:hover::after,
+:root:not(.dark):not([data-theme="dark"]) .card-hover:hover::after,
+:root:not(.dark):not([data-theme="dark"]) article.card:hover::after,
+:root:not(.dark):not([data-theme="dark"]) .card-flush:hover::after,
+:root:not(.dark):not([data-theme="dark"]) .card-bleed:hover::after {
+  right: -60px;
+  bottom: -92px;
+  width: 480px;
+  height: 480px;
+  opacity: 0.95;
+}
+
+:root:not(.dark):not([data-theme="dark"]) .card > *,
+:root:not(.dark):not([data-theme="dark"]) .card-hover > *,
+:root:not(.dark):not([data-theme="dark"]) article.card > *,
+:root:not(.dark):not([data-theme="dark"]) .card-flush > *,
+:root:not(.dark):not([data-theme="dark"]) .card-bleed > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ─── Dark Mode Hover Glow (Dark Mode Only) ─────────────────────────────────── */
+:is(.dark, [data-theme="dark"]) button:not(.card):not(.card-bleed):not(.card-flush):not([role="menuitem"]):not(.nav-item):not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) .btn:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) .btn-primary:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) .btn-secondary:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) .btn-ghost:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) input[type="button"]:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) input[type="submit"]:not(:disabled):hover {
+  animation: dark-btn-glow 1.8s ease-in-out infinite !important;
+  transform: translateY(-1px);
+}
+
+/* Danger / Red button hover glow in dark mode */
+:is(.dark, [data-theme="dark"]) button.bg-red-500:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button.bg-red-600:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button.bg-rose-500:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button.bg-rose-600:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button[class*="bg-red-"]:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button[class*="bg-rose-"]:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button[class*="text-rose-"]:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button[class*="text-red-"]:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) .btn-danger:not(:disabled):hover {
+  animation: dark-btn-glow-danger 1.8s ease-in-out infinite !important;
+}
+
+/* Success / Emerald button hover glow in dark mode */
+:is(.dark, [data-theme="dark"]) button[class*="bg-emerald-"]:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button[class*="bg-green-"]:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button[class*="text-emerald-"]:not(:disabled):hover,
+:is(.dark, [data-theme="dark"]) button[class*="text-green-"]:not(:disabled):hover {
+  animation: dark-btn-glow-success 1.8s ease-in-out infinite !important;
+}
+
+/* Ensure disabled buttons never glow or animate */
+button:disabled,
+button[disabled],
+.btn:disabled,
+.btn.disabled {
+  box-shadow: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+/* ─── Dark Mode Card Hover Glow Keyframes (Dark Mode Only) ─────────────────── */
+@keyframes dark-card-glow {
+  0% {
+    box-shadow: 0 0 16px rgba(124, 58, 237, 0.25), 0 0 32px rgba(147, 51, 234, 0.14);
+    border-color: rgba(167, 139, 250, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(139, 92, 246, 0.45), 0 0 52px rgba(124, 58, 237, 0.28), 0 0 75px rgba(236, 72, 153, 0.15);
+    border-color: rgba(192, 132, 252, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 16px rgba(124, 58, 237, 0.25), 0 0 32px rgba(147, 51, 234, 0.14);
+    border-color: rgba(167, 139, 250, 0.45);
+  }
+}
+
+/* ─── Dark Mode Card Hover Glow (Dark Mode Only) ────────────────────────────── */
+:is(.dark, [data-theme="dark"]) .card:hover,
+:is(.dark, [data-theme="dark"]) .card-hover:hover,
+:is(.dark, [data-theme="dark"]) article.card:hover,
+:is(.dark, [data-theme="dark"]) .login-card:hover {
+  animation: dark-card-glow 2.2s ease-in-out infinite !important;
+  transform: translateY(-2px);
+}
+
+/* ─── Modal Dialogs & Non-Translucent Surfaces ──────────────────────────────── */
+[role="dialog"] > div[class*="rounded-"],
+.modal-content,
+.modal-box {
+  background-color: rgb(var(--bg-surface)) !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:is(.dark, [data-theme="dark"]) [role="dialog"] > div[class*="rounded-"],
+:is(.dark, [data-theme="dark"]) .modal-content,
+:is(.dark, [data-theme="dark"]) .modal-box {
+  background-color: #18181b !important; /* solid zinc-900 - completely opaque, never translucent */
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* ─── Global Motion & Micro-Interaction System ─────────────────────────────── */
+
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.998);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-page-enter {
+  animation: page-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes tooltip-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-tooltip-pop {
+  animation: tooltip-pop 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modal-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-animate,
+[role="dialog"] > div[class*="rounded-"],
+.modal-content,
+.modal-box {
+  animation: modal-scale-in 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Subtle tactile button click feedback */
+button:not(:disabled):active,
+.btn:not(:disabled):active,
+input[type="button"]:not(:disabled):active,
+input[type="submit"]:not(:disabled):active {
+  transform: scale(0.97) !important;
+  transition: transform 70ms ease-out !important;
+}
+
+/* Hover lift utility */
+.hover-lift {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Icon forward nudge when parent is hovered */
+.group:hover .group-hover-nudge,
+button:hover .icon-nudge,
+a:hover .icon-nudge {
+  transform: translateX(3px);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Smooth progress bar transitions */
+.smooth-progress {
+  transition: width 0.65s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-page-enter,
+  .animate-tooltip-pop,
+  .modal-animate,
+  [role="dialog"] > div[class*="rounded-"],
+  .modal-content,
+  .modal-box,
+  .hover-lift:hover {
+    transform: none !important;
+    animation: none !important;
+  }
+}
+

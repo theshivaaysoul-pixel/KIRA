@@ -1,0 +1,40 @@
+{
+  "name": "kira-backend",
+  "version": "1.0.0",
+  "description": "KIRA backend API with Google Cloud Storage integration",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "jest --forceExit --detectOpenHandles",
+    "test:unit": "jest tests/unit --forceExit",
+    "test:integration": "jest tests/integration --forceExit --detectOpenHandles"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "clearMocks": true
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "firebase-admin": "^14.5.0",
+    "googleapis": "^182.0.0",
+    "helmet": "^8.3.0",
+    "morgan": "^1.12.1",
+    "multer": "^2.4.0",
+    "uuid": "^11.1.1"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "supertest": "^7.3.0"
+  }
+}

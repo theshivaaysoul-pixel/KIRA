@@ -1,0 +1,127 @@
+# Google Cloud Build Pipeline for KIRA Agency Manager
+# Phase 24: Production Deployment & Infrastructure
+#
+# Pipeline Flow:
+# 1. Install & Cache Dependencies
+# 2. Lint & Static Analysis
+# 3. TypeScript Compilation Check
+# 4. Automated Test Suite (62/62 Tests)
+# 5. Build Container Image (Multi-stage Standalone)
+# 6. Container Vulnerability Scan
+# 7. Push to Artifact Registry
+# 8. Deploy to Cloud Run (Least-Privilege Service Account)
+# 9. Health & Smoke Test Verification
+
+steps:
+  # Step 1: Install dependencies
+  - name: 'node:22-alpine'
+    id: 'install-deps'
+    entrypoint: 'npm'
+    args: ['ci', '--prefer-offline']
+    dir: 'agency-manager'
+
+  # Step 2: Lint and formatting check
+  - name: 'node:22-alpine'
+    id: 'lint'
+    entrypoint: 'npm'
+    args: ['run', 'lint']
+    dir: 'agency-manager'
+
+  # Step 3: TypeScript Typecheck
+  - name: 'node:22-alpine'
+    id: 'typecheck'
+    entrypoint: 'npx'
+    args: ['tsc', '--noEmit']
+    dir: 'agency-manager'
+
+  # Step 4: Run full test suite (Pre-deployment gate)
+  - name: 'node:22-alpine'
+    id: 'test'
+    entrypoint: 'npm'
+    args: ['test']
+    dir: 'agency-manager'
+    env:
+      - 'NODE_ENV=test'
+      - 'SKIP_STORAGE_INIT=true'
+
+  # Step 5: Build production Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args:
+      - 'build'
+      - '--tag'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}'
+      - '--tag'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:latest'
+      - '--file'
+      - 'agency-manager/Dockerfile'
+      - 'agency-manager'
+
+  # Step 6: Push to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}'
+
+  # Step 7: Deploy to Google Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+    id: 'cloud-run-deploy'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--service-account'
+      - '${_SERVICE_ACCOUNT}'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--cpu'
+      - '2'
+      - '--memory'
+      - '2Gi'
+      - '--min-instances'
+      - '1'
+      - '--max-instances'
+      - '10'
+      - '--timeout'
+      - '300s'
+      - '--concurrency'
+      - '80'
+      - '--set-env-vars'
+      - 'NODE_ENV=production,STORAGE_DRIVER=gcs,GOOGLE_CLOUD_STORAGE_BUCKET=${_STORAGE_BUCKET}'
+      - '--set-secrets'
+      - 'SESSION_SECRET=projects/${PROJECT_ID}/secrets/kira-session-secret:latest,FIREBASE_PRIVATE_KEY=projects/${PROJECT_ID}/secrets/kira-firebase-private-key:latest,GOOGLE_CLIENT_SECRET=projects/${PROJECT_ID}/secrets/kira-google-client-secret:latest'
+
+  # Step 8: Post-Deployment Smoke Test
+  - name: 'node:22-alpine'
+    id: 'smoke-test'
+    entrypoint: 'node'
+    args: ['scripts/smoke-test.mjs']
+    dir: 'agency-manager'
+    env:
+      - 'TARGET_URL=https://${_SERVICE_NAME}-${_PROJECT_HASH}-${_REGION_CODE}.a.run.app'
+
+substitutions:
+  _REGION: 'us-central1'
+  _REPOSITORY: 'kira-containers'
+  _IMAGE: 'kira-agency-manager'
+  _SERVICE_NAME: 'kira-agency-manager-prod'
+  _SERVICE_ACCOUNT: 'kira-agency-runner@${PROJECT_ID}.iam.gserviceaccount.com'
+  _STORAGE_BUCKET: '${PROJECT_ID}-prod-storage'
+  _PROJECT_HASH: 'uc'
+  _REGION_CODE: 'a'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '1200s'

@@ -1,0 +1,140 @@
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, production ]
+  pull_request:
+    branches: [ main, production ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-deployment-gate:
+    name: 1. Pre-Deployment Gate (Lint, Typecheck, Test, Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agency-manager
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: agency-manager/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint Static Analysis
+        run: npm run lint
+
+      - name: TypeScript Compilation Check
+        run: npx tsc --noEmit
+
+      - name: Comprehensive Test Suite (62/62 Tests)
+        run: npm test
+        env:
+          NODE_ENV: test
+          SKIP_STORAGE_INIT: 'true'
+
+      - name: Production Standalone Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  security-audit:
+    name: 2. Security Audit & Secrets Scan
+    needs: pre-deployment-gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agency-manager
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: agency-manager/package-lock.json
+
+      - name: NPM Dependency Vulnerability Audit
+        run: npm audit --audit-level=high
+
+      - name: Git Secrets & Private Key Exposure Scan
+        run: |
+          echo "Scanning for accidental credential exposure in committed code..."
+          ! git grep -iE 'BEGIN (RSA|EC|OPENSSH|DSA|PGP)? PRIVATE KEY' -- ':!*.test.*' ':!tests/' ':!*.example'
+          ! git grep -iE 'AIza[0-9A-Za-z\\-_]{35}' -- ':!*.example' ':!tests/'
+          echo "No active credentials or private keys detected in repository."
+
+  deploy-production:
+    name: 3. Production Deployment (Cloud Run)
+    needs: [pre-deployment-gate, security-audit]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://kira.agency
+    defaults:
+      run:
+        working-directory: agency-manager
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Authorize Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Build & Push Production Docker Image
+        run: |
+          IMAGE_URI="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/kira-containers/kira-agency-manager:${{ github.sha }}"
+          LATEST_URI="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/kira-containers/kira-agency-manager:latest"
+          docker build -t "$IMAGE_URI" -t "$LATEST_URI" -f Dockerfile .
+          docker push "$IMAGE_URI"
+          docker push "$LATEST_URI"
+
+      - name: Deploy to Cloud Run
+        run: |
+          IMAGE_URI="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/kira-containers/kira-agency-manager:${{ github.sha }}"
+          gcloud run deploy kira-agency-manager-prod \
+            --image "$IMAGE_URI" \
+            --region us-central1 \
+            --platform managed \
+            --service-account "kira-agency-runner@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --port 8080 \
+            --cpu 2 \
+            --memory 2Gi \
+            --min-instances 1 \
+            --max-instances 10 \
+            --timeout 300s \
+            --concurrency 80 \
+            --set-env-vars "NODE_ENV=production,STORAGE_DRIVER=gcs,GOOGLE_CLOUD_STORAGE_BUCKET=${{ secrets.GCS_PROD_BUCKET }},NEXT_PUBLIC_APP_URL=https://kira.agency" \
+            --set-secrets "SESSION_SECRET=projects/${{ secrets.GCP_PROJECT_ID }}/secrets/kira-session-secret:latest,FIREBASE_PRIVATE_KEY=projects/${{ secrets.GCP_PROJECT_ID }}/secrets/kira-firebase-private-key:latest,GOOGLE_CLIENT_SECRET=projects/${{ secrets.GCP_PROJECT_ID }}/secrets/kira-google-client-secret:latest"
+
+      - name: Run Production Smoke Test
+        run: |
+          TARGET_URL="https://kira.agency" node scripts/smoke-test.mjs

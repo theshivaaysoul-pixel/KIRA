@@ -1,0 +1,89 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: kira-agency-manager-prod
+  labels:
+    cloud.googleapis.com/location: us-central1
+    app.kubernetes.io/name: kira-agency-manager
+    app.kubernetes.io/part-of: kira-platform
+    environment: production
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/description: "KIRA Agency Manager Next.js Production Runtime"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      serviceAccountName: kira-agency-runner@kira-4b051.iam.gserviceaccount.com
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: us-central1-docker.pkg.dev/kira-4b051/kira-containers/kira-agency-manager:latest
+          ports:
+            - name: http1
+              containerPort: 8080
+          resources:
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "8080"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: STORAGE_DRIVER
+              value: "gcs"
+            - name: GOOGLE_CLOUD_STORAGE_BUCKET
+              value: "kira-agency-manager-prod-storage"
+            - name: GOOGLE_CLOUD_PROJECT_ID
+              value: "kira-4b051"
+            - name: NEXT_PUBLIC_APP_URL
+              value: "https://kira.agency"
+            - name: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              value: "kira-4b051"
+            - name: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+              value: "kira-4b051.firebaseapp.com"
+            # Secret Manager Injections (Mounted securely into container environment)
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kira-session-secret
+                  key: latest
+            - name: FIREBASE_CLIENT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: kira-firebase-client-email
+                  key: latest
+            - name: FIREBASE_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kira-firebase-private-key
+                  key: latest
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kira-google-client-secret
+                  key: latest
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 5

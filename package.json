@@ -1,0 +1,15 @@
+{
+  "name": "kira",
+  "version": "1.0.0",
+  "description": "KIRA — Full-stack app with Google Cloud Storage integration",
+  "private": true,
+  "workspaces": [],
+  "scripts": {
+    "dev": "npm --prefix agency-manager run dev",
+    "agency-manager": "npm --prefix agency-manager run dev",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm run dev",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "test": "cd backend && npm test"
+  }
+}
