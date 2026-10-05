@@ -3,6 +3,7 @@
 // NEVER import this file from client components — server-side only.
 
 import path from 'path';
+import fs from 'fs';
 import { Storage } from '@google-cloud/storage';
 import type { IStorageService, StorageHealthResult, StorageListItem, UploadResult } from './storage-service';
 
@@ -16,13 +17,34 @@ const TEST_OBJECT_NAME = '__kira_health_check_test__.txt';
  *   - Application Default Credentials (GCP-hosted environments: Cloud Run, GKE, etc.)
  */
 function buildStorageClient(): Storage {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
-  const clientEmail = process.env.GOOGLE_CLOUD_CLIENT_EMAIL;
-  const rawPrivateKey = process.env.GOOGLE_CLOUD_PRIVATE_KEY;
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.GOOGLE_CLOUD_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+  const rawPrivateKey = process.env.GOOGLE_CLOUD_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
   const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-  // If a key file path is given and exists on disk, use it
-  if (keyFilePath) {
+  // 1. Direct JSON string or Base64 encoded Service Account
+  const rawServiceAccount =
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (rawServiceAccount && typeof rawServiceAccount === 'string') {
+    try {
+      const trimmed = rawServiceAccount.trim();
+      const jsonStr = trimmed.startsWith('{')
+        ? trimmed
+        : Buffer.from(trimmed, 'base64').toString('utf8');
+      const serviceAccount = JSON.parse(jsonStr);
+      if (serviceAccount.project_id && serviceAccount.private_key) {
+        return new Storage({
+          projectId: serviceAccount.project_id,
+          credentials: serviceAccount,
+        });
+      }
+    } catch {}
+  }
+
+  // 2. If a key file path is given and exists on disk, use it
+  if (keyFilePath && typeof keyFilePath === 'string' && !keyFilePath.trim().startsWith('{')) {
     const resolvedPath = path.isAbsolute(keyFilePath)
       ? keyFilePath
       : path.resolve(process.cwd(), keyFilePath);
@@ -31,7 +53,7 @@ function buildStorageClient(): Storage {
     }
   }
 
-  // If inline credentials are provided, use them
+  // 3. If inline credentials are provided, use them
   if (clientEmail && rawPrivateKey) {
     let privateKey = rawPrivateKey.trim();
     if (privateKey.startsWith('"') && privateKey.endsWith('"')) {

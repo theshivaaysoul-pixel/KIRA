@@ -22,8 +22,34 @@ export function getAdminApp(): App {
     return adminApp!;
   }
 
+  // 1. Direct JSON string or Base64 encoded Service Account
+  const rawServiceAccount =
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (rawServiceAccount && typeof rawServiceAccount === 'string') {
+    try {
+      const trimmed = rawServiceAccount.trim();
+      const jsonStr = trimmed.startsWith('{')
+        ? trimmed
+        : Buffer.from(trimmed, 'base64').toString('utf8');
+      const serviceAccount = JSON.parse(jsonStr);
+      if (serviceAccount.project_id && serviceAccount.private_key) {
+        adminApp = initializeApp({
+          credential: cert(serviceAccount),
+          projectId: serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID,
+        });
+        console.log('[Firebase Admin] Initialized from service account JSON/Base64 for project:', serviceAccount.project_id);
+        return adminApp!;
+      }
+    } catch (e) {
+      console.warn('[Firebase Admin] Failed to parse service account JSON/Base64 env:', e);
+    }
+  }
+
+  // 2. Key file on disk (local development)
   const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (keyFilePath) {
+  if (keyFilePath && typeof keyFilePath === 'string' && !keyFilePath.trim().startsWith('{')) {
     let resolvedPath = path.isAbsolute(keyFilePath)
       ? keyFilePath
       : path.resolve(process.cwd(), keyFilePath);
@@ -46,6 +72,7 @@ export function getAdminApp(): App {
     }
   }
 
+  // 3. Individual environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY)
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -66,7 +93,7 @@ export function getAdminApp(): App {
 
   throw new Error(
     '[Firebase Admin] Missing server credentials. ' +
-    'Provide GOOGLE_APPLICATION_CREDENTIALS in .env.local or set FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY.'
+    'Provide FIREBASE_SERVICE_ACCOUNT_KEY (Base64 or JSON), GOOGLE_APPLICATION_CREDENTIALS, or set FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY.'
   );
 }
 
