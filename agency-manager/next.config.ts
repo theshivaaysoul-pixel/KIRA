@@ -26,9 +26,9 @@ const nextConfig: NextConfig = {
     const cspHeader = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://*.firebaseapp.com",
-      "style-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https://lh3.googleusercontent.com https://googleusercontent.com https://storage.googleapis.com",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com",
       "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://storage.googleapis.com https://*.firebaseapp.com https://accounts.google.com",
       "frame-ancestors 'none'",

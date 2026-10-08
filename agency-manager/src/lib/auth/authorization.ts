@@ -79,8 +79,12 @@ export async function getCurrentUser(req: NextRequest): Promise<DecodedIdToken |
 
   try {
     return await verifyIdToken(idToken);
-  } catch {
-    // Invalid or expired token
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('Missing server credentials')) {
+      console.error('[getCurrentUser] Firebase Admin SDK is not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY or FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY in your environment variables.');
+      throw new Error('SERVER_CONFIG_MISSING');
+    }
     return null;
   }
 }
@@ -90,7 +94,27 @@ export async function getCurrentUser(req: NextRequest): Promise<DecodedIdToken |
  * Handles auto-linking authUid to email if first time seen.
  */
 export async function getCurrentTeamMember(req: NextRequest): Promise<AuthContext> {
-  const user = await getCurrentUser(req);
+  let user: DecodedIdToken | null = null;
+  try {
+    user = await getCurrentUser(req);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'SERVER_CONFIG_MISSING') {
+      return {
+        user: null,
+        member: null,
+        status: 'UNAUTHENTICATED',
+        error: 'Server configuration error: Firebase Admin SDK credentials are not set. The deployment is missing required environment variables (FIREBASE_SERVICE_ACCOUNT_KEY or FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY).',
+      };
+    }
+    return {
+      user: null,
+      member: null,
+      status: 'UNAUTHENTICATED',
+      error: 'Authentication credentials were not provided or are invalid.',
+    };
+  }
+
   if (!user) {
     return {
       user: null,

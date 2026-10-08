@@ -41,6 +41,7 @@ export default function DashboardPage() {
   }
 
   if (error && !data) {
+    const isServerConfig = error.includes('Server configuration error') || error.includes('Firebase Admin SDK');
     return (
       <div className="min-h-[400px] flex items-center justify-center p-6">
         <div className="card max-w-md w-full p-8 text-center flex flex-col items-center">
@@ -48,11 +49,16 @@ export default function DashboardPage() {
             <AlertCircle size={28} />
           </div>
           <h2 className="text-lg font-bold text-[rgb(var(--text-primary))] mb-2">
-            Unable to Load Dashboard
+            {isServerConfig ? 'Server Configuration Required' : 'Unable to Load Dashboard'}
           </h2>
-          <p className="text-sm text-[rgb(var(--text-muted))] mb-6 leading-relaxed">
+          <p className="text-sm text-[rgb(var(--text-muted))] mb-4 leading-relaxed">
             {error}
           </p>
+          {isServerConfig && (
+            <p className="text-xs text-[rgb(var(--text-muted))] mb-6 leading-relaxed">
+              Add your Firebase service account credentials to your hosting provider&apos;s environment variables, then redeploy.
+            </p>
+          )}
           <Button variant="primary" onClick={() => refresh()} className="w-full">
             Try Again
           </Button>
