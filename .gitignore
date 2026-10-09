@@ -44,3 +44,4 @@ Thumbs.db
 # Agent/Temporary
 .tempmediaStorage/
 .system_generated/
+.vercel
