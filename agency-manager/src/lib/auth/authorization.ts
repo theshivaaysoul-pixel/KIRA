@@ -85,7 +85,11 @@ export async function getCurrentUser(req: NextRequest): Promise<DecodedIdToken |
       console.error('[getCurrentUser] Firebase Admin SDK is not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY or FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY in your environment variables.');
       throw new Error('SERVER_CONFIG_MISSING');
     }
-    return null;
+    const code = (err as { code?: string; errorInfo?: { code?: string } })?.errorInfo?.code
+      || (err as { code?: string })?.code
+      || 'unknown';
+    console.error('[getCurrentUser] verifyIdToken failed:', code, message);
+    throw new Error(`TOKEN_VERIFY_FAILED:${code}:${message.slice(0, 200)}`);
   }
 }
 
@@ -105,6 +109,14 @@ export async function getCurrentTeamMember(req: NextRequest): Promise<AuthContex
         member: null,
         status: 'UNAUTHENTICATED',
         error: 'Server configuration error: Firebase Admin SDK credentials are not set. The deployment is missing required environment variables (FIREBASE_SERVICE_ACCOUNT_KEY or FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY).',
+      };
+    }
+    if (message.startsWith('TOKEN_VERIFY_FAILED:')) {
+      return {
+        user: null,
+        member: null,
+        status: 'UNAUTHENTICATED',
+        error: `Token verification failed (${message.slice('TOKEN_VERIFY_FAILED:'.length)})`,
       };
     }
     return {
@@ -293,7 +305,7 @@ export async function requireAuthenticatedUser(req: NextRequest): Promise<{
   user: DecodedIdToken | null;
   errorResponse: NextResponse<StructuredErrorResponse> | null;
 }> {
-  const user = await getCurrentUser(req);
+  const user = await getCurrentUser(req).catch(() => null);
   if (!user) {
     return {
       user: null,

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<{
   if (rateLimitResponse) return rateLimitResponse as unknown as NextResponse<ApiResponse<{ logged: boolean }>>;
 
   try {
-    const user = await getCurrentUser(req);
+    const user = await getCurrentUser(req).catch(() => null);
     const body = await req.json().catch(() => ({}));
     const action = body.action === 'LOGOUT' ? 'LOGOUT' : 'LOGIN';
 
