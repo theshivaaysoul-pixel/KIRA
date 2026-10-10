@@ -37,17 +37,55 @@ export function GradientGridBackground() {
 
     // Pointer state with smooth spring lerp
     const mouse = { x: -1000, y: -1000, targetX: -1000, targetY: -1000, active: false };
+    let isTouching = false;
     let lastMoveTime = Date.now();
     const ripples: Ripple[] = [];
 
     // Configuration — ultra-fine micro-grid density & delicate point sizing
-    const CELL_SIZE = 10; // Decreased grid size for high-density micro-matrix
+    const CELL_SIZE = 12; // High-density micro-matrix
     const GRAVITY_RADIUS = 240; // Distance of gravitational influence
     const MAX_PULL = 22; // Subtle, elegant spacetime displacement
     const SWIRL_STRENGTH = 0.30; // Relativistic frame-drag swirl factor
+    const BASE_POINT_SIZE = 0.55; // Delicate micro-dots
+
+    // Pre-rendered offscreen canvas for static background dots
+    let offscreenCanvas: HTMLCanvasElement | null = null;
+
+    const buildStaticGrid = () => {
+      if (width <= 0 || height <= 0) return;
+      if (!offscreenCanvas) {
+        offscreenCanvas = document.createElement('canvas');
+      }
+      offscreenCanvas.width = canvas.width;
+      offscreenCanvas.height = canvas.height;
+      const offCtx = offscreenCanvas.getContext('2d');
+      if (!offCtx) return;
+
+      offCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+      offCtx.scale(dpr, dpr);
+
+      const isDark =
+        document.documentElement.classList.contains('dark') ||
+        resolvedTheme === 'dark';
+      const basePointColor = isDark
+        ? 'rgba(255, 255, 255, 0.11)'
+        : 'rgba(99, 102, 241, 0.13)';
+
+      offCtx.beginPath();
+      offCtx.fillStyle = basePointColor;
+      for (let x0 = 0; x0 <= width; x0 += CELL_SIZE) {
+        for (let y0 = 0; y0 <= height; y0 += CELL_SIZE) {
+          offCtx.moveTo(x0 + BASE_POINT_SIZE, y0);
+          offCtx.arc(x0, y0, BASE_POINT_SIZE, 0, Math.PI * 2);
+        }
+      }
+      offCtx.fill();
+    };
 
     const handleResize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const prevWidth = width;
+      const prevHeight = height;
+      dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       width = window.innerWidth;
       height = window.innerHeight;
       canvas.width = Math.floor(width * dpr);
@@ -55,10 +93,26 @@ export function GradientGridBackground() {
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       ctx.scale(dpr, dpr);
+
+      // Rebuild offscreen cache on resize
+      buildStaticGrid();
+
+      // Adapt cursor / gradient position when switching between desktop and mobile or rotating
+      if (prevWidth > 0 && prevHeight > 0) {
+        if (mouse.targetX > width || mouse.targetY > height || mouse.x > width || mouse.y > height) {
+          const ratioX = width / prevWidth;
+          const ratioY = height / prevHeight;
+          mouse.targetX = Math.min(Math.max(20, mouse.targetX * ratioX), width - 20);
+          mouse.targetY = Math.min(Math.max(20, mouse.targetY * ratioY), height - 20);
+          mouse.x = mouse.targetX;
+          mouse.y = mouse.targetY;
+        }
+      }
     };
 
     handleResize();
     window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('orientationchange', handleResize, { passive: true });
 
     // Initial center position
     mouse.targetX = width / 2;
@@ -66,30 +120,110 @@ export function GradientGridBackground() {
     mouse.x = mouse.targetX;
     mouse.y = mouse.targetY;
 
-    const onPointerMove = (e: PointerEvent) => {
-      mouse.targetX = e.clientX;
-      mouse.targetY = e.clientY;
+    const setPointerCoords = (clientX: number, clientY: number, fromTouch = false) => {
+      mouse.targetX = Math.min(Math.max(0, clientX), width);
+      mouse.targetY = Math.min(Math.max(0, clientY), height);
       mouse.active = true;
       lastMoveTime = Date.now();
+      if (fromTouch) {
+        isTouching = true;
+      }
     };
 
-    const onPointerLeave = () => {
-      mouse.active = false;
+    // Modern pointer events (mouse, touch screen, stylus)
+    const onPointerMove = (e: PointerEvent) => {
+      const isTouch = e.pointerType === 'touch';
+      setPointerCoords(e.clientX, e.clientY, isTouch);
     };
 
-    const onPointerDown = (e: MouseEvent) => {
+    // Standard mousemove fallback for desktop & DevTools device simulation
+    const onMouseMove = (e: MouseEvent) => {
+      setPointerCoords(e.clientX, e.clientY, false);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      const isTouch = e.pointerType === 'touch';
+      setPointerCoords(e.clientX, e.clientY, isTouch);
+
+      // On direct touch, snap spring lerp quickly for instantaneous feel
+      if (isTouch) {
+        mouse.x += (e.clientX - mouse.x) * 0.7;
+        mouse.y += (e.clientY - mouse.y) * 0.7;
+      }
+
       ripples.push({
         x: e.clientX,
         y: e.clientY,
         radius: 8,
-        maxRadius: 320,
+        maxRadius: Math.min(width * 0.75, 320),
         alpha: 0.9,
       });
     };
 
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') {
+        isTouching = false;
+        lastMoveTime = Date.now();
+      }
+    };
+
+    const onPointerLeave = () => {
+      // Don't immediately cancel active state — preserve coordinate for smooth drift transition
+      lastMoveTime = Date.now();
+    };
+
+    // Dedicated mobile touch listeners for iOS Safari, Chrome Android, and mobile viewport
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches && e.touches.length > 0) {
+        const touch = e.touches[0];
+        setPointerCoords(touch.clientX, touch.clientY, true);
+
+        // Snap near touch point immediately to eliminate any drag delay
+        mouse.x += (touch.clientX - mouse.x) * 0.7;
+        mouse.y += (touch.clientY - mouse.y) * 0.7;
+
+        ripples.push({
+          x: touch.clientX,
+          y: touch.clientY,
+          radius: 8,
+          maxRadius: Math.min(width * 0.75, 280),
+          alpha: 0.9,
+        });
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches && e.touches.length > 0) {
+        const touch = e.touches[0];
+        setPointerCoords(touch.clientX, touch.clientY, true);
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches && e.touches.length > 0) {
+        const touch = e.touches[0];
+        setPointerCoords(touch.clientX, touch.clientY, true);
+      } else {
+        isTouching = false;
+        lastMoveTime = Date.now();
+      }
+    };
+
+    const onTouchCancel = () => {
+      isTouching = false;
+      lastMoveTime = Date.now();
+    };
+
     window.addEventListener('pointermove', onPointerMove, { passive: true });
-    document.addEventListener('pointerleave', onPointerLeave);
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
     window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
+    document.addEventListener('pointerleave', onPointerLeave);
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchCancel, { passive: true });
 
     let time = 0;
 
@@ -100,18 +234,19 @@ export function GradientGridBackground() {
         document.documentElement.classList.contains('dark') ||
         resolvedTheme === 'dark';
 
-      // Idle autonomous subtle drift if mouse has been still for > 2.5s
-      const isIdle = Date.now() - lastMoveTime > 2500 || !mouse.active;
+      // Faster, responsive spring lerp when actively touching or dragging
+      const lerpSpeed = isTouching ? 0.24 : 0.095;
+      mouse.x += (mouse.targetX - mouse.x) * lerpSpeed;
+      mouse.y += (mouse.targetY - mouse.y) * lerpSpeed;
+
+      // Idle autonomous subtle drift only after 2.8s of inactivity and not touching
+      const isIdle = Date.now() - lastMoveTime > 2800 && !isTouching;
       if (isIdle) {
         const driftX = width / 2 + Math.cos(time * 0.65) * (width * 0.28);
         const driftY = height / 2 + Math.sin(time * 0.95) * (height * 0.22);
         mouse.targetX = driftX;
         mouse.targetY = driftY;
       }
-
-      // Smooth lerp chasing target position (spring physics)
-      mouse.x += (mouse.targetX - mouse.x) * 0.095;
-      mouse.y += (mouse.targetY - mouse.y) * 0.095;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -144,13 +279,17 @@ export function GradientGridBackground() {
       ctx.fillRect(0, 0, width, height);
 
       // ─── 2. Gravitational Core Glow Behind Points ────────────────────────
+      const isMobile = width < 640;
+      const gravityRadius = isMobile ? Math.min(210, Math.max(160, width * 0.48)) : GRAVITY_RADIUS;
+      const maxPull = isMobile ? 18 : MAX_PULL;
+
       const coreGrad = ctx.createRadialGradient(
         mouse.x,
         mouse.y,
         0,
         mouse.x,
         mouse.y,
-        GRAVITY_RADIUS
+        gravityRadius
       );
       if (isDark) {
         coreGrad.addColorStop(0, 'rgba(6, 182, 212, 0.28)');    // Cyan core
@@ -165,19 +304,15 @@ export function GradientGridBackground() {
       }
       ctx.fillStyle = coreGrad;
       ctx.fillRect(
-        Math.max(0, mouse.x - GRAVITY_RADIUS),
-        Math.max(0, mouse.y - GRAVITY_RADIUS),
-        GRAVITY_RADIUS * 2,
-        GRAVITY_RADIUS * 2
+        Math.max(0, mouse.x - gravityRadius),
+        Math.max(0, mouse.y - gravityRadius),
+        gravityRadius * 2,
+        gravityRadius * 2
       );
 
       // ─── 3. Gravitational Dot Matrix (No lines, points only) ─────────────
-      const basePointColor = isDark
-        ? 'rgba(255, 255, 255, 0.11)'
-        : 'rgba(99, 102, 241, 0.13)';
-      const basePointSize = 0.55; // Delicate, micro-sized dots
-
-      const gravRadSq = GRAVITY_RADIUS * GRAVITY_RADIUS;
+      const basePointSize = BASE_POINT_SIZE;
+      const gravRadSq = gravityRadius * gravityRadius;
 
       // Color palette chromatic stops for warped points:
       // 0: Cyan, 1: Violet, 2: Magenta, 3: Amber
@@ -195,30 +330,23 @@ export function GradientGridBackground() {
       ];
       const palette = isDark ? paletteDark : paletteLight;
 
-      // Gravitational bounding box around cursor
-      const minX = Math.max(0, Math.floor((mouse.x - GRAVITY_RADIUS) / CELL_SIZE) * CELL_SIZE);
-      const maxX = Math.min(width, Math.ceil((mouse.x + GRAVITY_RADIUS) / CELL_SIZE) * CELL_SIZE);
-      const minY = Math.max(0, Math.floor((mouse.y - GRAVITY_RADIUS) / CELL_SIZE) * CELL_SIZE);
-      const maxY = Math.min(height, Math.ceil((mouse.y + GRAVITY_RADIUS) / CELL_SIZE) * CELL_SIZE);
-
-      // Fast single-pass batch for unwarped background points
-      ctx.beginPath();
-      ctx.fillStyle = basePointColor;
-      for (let x0 = 0; x0 <= width; x0 += CELL_SIZE) {
-        const inXRange = x0 >= minX && x0 <= maxX;
-        for (let y0 = 0; y0 <= height; y0 += CELL_SIZE) {
-          if (inXRange && y0 >= minY && y0 <= maxY) {
-            const dx = mouse.x - x0;
-            const dy = mouse.y - y0;
-            if (dx * dx + dy * dy < gravRadSq) {
-              continue; // Handled individually below with gravitational warp
-            }
-          }
-          ctx.moveTo(x0 + basePointSize, y0);
-          ctx.arc(x0, y0, basePointSize, 0, Math.PI * 2);
-        }
+      // Instant single-pass GPU blit for all unwarped background points,
+      // clipping out the circular gravity well around the cursor.
+      if (offscreenCanvas) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, width, height);
+        ctx.arc(mouse.x, mouse.y, gravityRadius, 0, Math.PI * 2);
+        ctx.clip('evenodd');
+        ctx.drawImage(offscreenCanvas, 0, 0, width, height);
+        ctx.restore();
       }
-      ctx.fill();
+
+      // Gravitational bounding box around cursor for active warping
+      const minX = Math.max(0, Math.floor((mouse.x - gravityRadius) / CELL_SIZE) * CELL_SIZE);
+      const maxX = Math.min(width, Math.ceil((mouse.x + gravityRadius) / CELL_SIZE) * CELL_SIZE);
+      const minY = Math.max(0, Math.floor((mouse.y - gravityRadius) / CELL_SIZE) * CELL_SIZE);
+      const maxY = Math.min(height, Math.ceil((mouse.y + gravityRadius) / CELL_SIZE) * CELL_SIZE);
 
       // Render warped points inside the gravitational field with spacetime displacement
       for (let x0 = minX; x0 <= maxX; x0 += CELL_SIZE) {
@@ -229,11 +357,11 @@ export function GradientGridBackground() {
           if (distSq >= gravRadSq) continue;
 
           const dist = Math.sqrt(distSq);
-          const normDist = dist / GRAVITY_RADIUS; // 0 (at cursor) to 1 (at boundary)
+          const normDist = dist / gravityRadius; // 0 (at cursor) to 1 (at boundary)
 
           // Non-linear gravitational pull (strongest at center)
           const gravity = Math.pow(1 - normDist, 1.85);
-          const pull = gravity * MAX_PULL;
+          const pull = gravity * maxPull;
 
           // Frame-dragging swirl component (spacetime twist)
           const swirl = Math.sin(normDist * Math.PI) * SWIRL_STRENGTH;
@@ -250,17 +378,19 @@ export function GradientGridBackground() {
           let drawX = x0 + rx * pull;
           let drawY = y0 + ry * pull;
 
-          // Gravitational wave ripple influence
-          for (let i = 0; i < ripples.length; i++) {
-            const rip = ripples[i];
-            const rdx = drawX - rip.x;
-            const rdy = drawY - rip.y;
-            const rdist = Math.hypot(rdx, rdy);
-            const rdiff = Math.abs(rdist - rip.radius);
-            if (rdiff < 35) {
-              const wavePush = Math.sin((rdiff / 35) * Math.PI) * 12 * rip.alpha;
-              drawX += (rdx / (rdist || 1)) * wavePush;
-              drawY += (rdy / (rdist || 1)) * wavePush;
+          // Gravitational wave ripple influence (only compute if ripples exist)
+          if (ripples.length > 0) {
+            for (let i = 0; i < ripples.length; i++) {
+              const rip = ripples[i];
+              const rdx = drawX - rip.x;
+              const rdy = drawY - rip.y;
+              const rdist = Math.hypot(rdx, rdy);
+              const rdiff = Math.abs(rdist - rip.radius);
+              if (rdiff < 35) {
+                const wavePush = Math.sin((rdiff / 35) * Math.PI) * 12 * rip.alpha;
+                drawX += (rdx / (rdist || 1)) * wavePush;
+                drawY += (rdy / (rdist || 1)) * wavePush;
+              }
             }
           }
 
@@ -276,9 +406,10 @@ export function GradientGridBackground() {
           const g = Math.round(palette[idx1][1] * (1 - blend) + palette[idx2][1] * blend);
           const b = Math.round(palette[idx1][2] * (1 - blend) + palette[idx2][2] * blend);
 
-          const alpha = isDark
+          const rawAlpha = isDark
             ? 0.18 + gravity * 0.82
             : 0.20 + gravity * 0.78;
+          const alpha = Math.round(rawAlpha * 100) / 100;
 
           const pointSize = basePointSize + gravity * 0.65; // Max ~1.2px
           const pointFill = `rgba(${r}, ${g}, ${b}, ${alpha})`;
@@ -353,9 +484,16 @@ export function GradientGridBackground() {
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
       window.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerleave', onPointerLeave);
+      window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('pointerleave', onPointerLeave);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchCancel);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [resolvedTheme]);

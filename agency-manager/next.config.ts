@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   },
   // Prevent firebase-admin from being bundled in the client
   experimental: {
-    // serverComponentsExternalPackages is replaced with serverExternalPackages in Next 15+
+    optimizePackageImports: ['lucide-react'],
   },
   serverExternalPackages: [
     'firebase-admin',

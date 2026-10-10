@@ -177,13 +177,18 @@ export default function ContentPage() {
     setActionError(null);
     try {
       await restoreContent(content.id);
-      toast.success(`"${content.title}" restored successfully.`);
+      if (filters.view === 'archived') {
+        updateFilter('view', 'active');
+        toast.success(`"${content.title}" restored to Content.`);
+      } else {
+        toast.success(`"${content.title}" restored successfully.`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to restore content';
       setActionError(msg);
       toast.error(msg);
     }
-  }, [restoreContent, toast]);
+  }, [restoreContent, toast, filters.view, updateFilter]);
 
   const handleEmptyBin = useCallback(async () => {
     if (!window.confirm('Are you sure you want to permanently delete ALL items in the Bin? This action cannot be undone.')) {

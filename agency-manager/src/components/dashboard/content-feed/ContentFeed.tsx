@@ -8,13 +8,22 @@
 // - Full responsiveness, dark mode compliance, and honest empty/error states
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Film, Loader2 } from 'lucide-react';
+import { Film, Loader2, Shuffle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { ContentWithRelations, ContentQueryResult } from '@/lib/types/domain';
 import { ContentFeedItem } from './ContentFeedItem';
 import { ContentFeedSkeleton } from './ContentFeedSkeleton';
 import { ContentFeedEmpty } from './ContentFeedEmpty';
 import { ContentFeedError } from './ContentFeedError';
+
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 export function ContentFeed() {
   const { user, getIdToken, loading: authLoading } = useAuth();
@@ -51,7 +60,7 @@ export function ContentFeed() {
           return;
         }
 
-        const res = await fetch(`/api/content?view=feed&page=${pageNum}&pageSize=6`, {
+        const res = await fetch(`/api/content?view=feed&page=${pageNum}&pageSize=50&shuffle=true`, {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -68,8 +77,9 @@ export function ContentFeed() {
         }
 
         const data: ContentQueryResult = json.data;
+        const shuffledBatch = shuffleArray(data.items);
 
-        setItems((prev) => (pageNum === 1 ? data.items : [...prev, ...data.items]));
+        setItems((prev) => (pageNum === 1 ? shuffledBatch : [...prev, ...shuffledBatch]));
         setPage(data.page);
         setTotalPages(data.totalPages);
         setTotalCount(data.total);
@@ -83,6 +93,10 @@ export function ContentFeed() {
     },
     [getIdToken]
   );
+
+  const handleShuffle = useCallback(() => {
+    setItems((prev) => shuffleArray(prev));
+  }, []);
 
   // Initial load once auth state is settled
   useEffect(() => {
@@ -149,6 +163,19 @@ export function ContentFeed() {
             </p>
           </div>
         </div>
+
+        {/* Shuffle Button */}
+        <button
+          type="button"
+          onClick={handleShuffle}
+          disabled={isLoadingInitial || items.length === 0}
+          title="Shuffle feed content"
+          aria-label="Shuffle feed content"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[rgb(var(--bg-subtle))] border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:border-[rgb(var(--primary))]/40 hover:bg-[rgb(var(--card-bg))] transition-all shrink-0 cursor-pointer active:scale-95 disabled:opacity-50 shadow-xs"
+        >
+          <Shuffle size={14} className="text-[rgb(var(--primary))]" />
+          <span className="hidden sm:inline">Shuffle</span>
+        </button>
       </div>
 
       {/* 2. Feed Cards Grid Container */}
@@ -190,12 +217,21 @@ export function ContentFeed() {
             </div>
 
             {/* Pagination / Infinite Scroll Bottom Sentinel */}
-            <div ref={sentinelRef} className="py-2 flex justify-center">
+            <div ref={sentinelRef} className="py-4 flex flex-col items-center justify-center gap-3">
               {isLoadingMore && (
                 <div className="flex items-center gap-2 py-4 text-xs text-[rgb(var(--text-muted))]">
                   <Loader2 size={16} className="animate-spin text-[rgb(var(--primary))]" />
                   <span>Loading more content...</span>
                 </div>
+              )}
+              {!isLoadingMore && page < totalPages && (
+                <button
+                  type="button"
+                  onClick={() => fetchFeed(page + 1, false)}
+                  className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-[rgb(var(--bg-subtle))] border border-[rgb(var(--border))] text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--card-bg))] hover:border-[rgb(var(--primary))]/40 transition-all shadow-xs cursor-pointer active:scale-95"
+                >
+                  Load More Content ({totalCount - items.length} remaining)
+                </button>
               )}
             </div>
 

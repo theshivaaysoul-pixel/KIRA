@@ -21,7 +21,7 @@ export function ScrollReveal({
   children,
   delay = 0,
   className = '',
-  threshold = 0.08,
+  threshold = 0,
 }: ScrollRevealProps) {
   const [revealed, setRevealed] = useState(false);
   const elementRef = useRef<HTMLDivElement>(null);
@@ -36,24 +36,44 @@ export function ScrollReveal({
     const element = elementRef.current;
     if (!element) return;
 
+    // Immediate check if element is already within or above the viewport
+    const checkVisibility = () => {
+      const rect = element.getBoundingClientRect();
+      if (rect.top <= (window.innerHeight || document.documentElement.clientHeight) + 50) {
+        setRevealed(true);
+        return true;
+      }
+      return false;
+    };
+
+    if (checkVisibility()) {
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
-        if (entry && entry.isIntersecting) {
+        if (entry && (entry.isIntersecting || entry.intersectionRatio > 0)) {
           setRevealed(true);
           observer.disconnect();
         }
       },
       {
         threshold,
-        rootMargin: '0px 0px -20px 0px',
+        rootMargin: '50px 0px 50px 0px',
       }
     );
 
     observer.observe(element);
 
+    const handleResize = () => {
+      checkVisibility();
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+
     return () => {
       observer.disconnect();
+      window.removeEventListener('resize', handleResize);
     };
   }, [reducedMotion, threshold]);
 

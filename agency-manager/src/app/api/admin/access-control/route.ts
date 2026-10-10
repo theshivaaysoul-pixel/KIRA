@@ -10,7 +10,9 @@ import {
 import {
   ACCESS_OPTION_MODULES,
   KIRA_OWNER_EMAIL,
+  KIRA_OWNER_EMAILS,
   KIRA_MANAGER_EMAIL,
+  isOwnerOrManagerEmail,
   PERMISSIONS,
   Permission,
 } from '@/lib/auth/permissions';
@@ -23,6 +25,7 @@ export interface AccessControlData {
   options: readonly AccessOptionModule[];
   allPermissions: readonly Permission[];
   ownerEmail: string;
+  ownerEmails: readonly string[];
   managerEmail: string;
 }
 
@@ -41,7 +44,7 @@ export async function GET(
   if (actor.role !== 'OWNER' && actor.role !== 'MANAGER') {
     return authErrorResponse(
       'FORBIDDEN',
-      `Access restricted: Only the Owner (${KIRA_OWNER_EMAIL}) and Manager (${KIRA_MANAGER_EMAIL}) can access permissions management. Please contact agency leadership.`,
+      `Access restricted: Only the Owners (${KIRA_OWNER_EMAILS.join(', ')}) and Manager (${KIRA_MANAGER_EMAIL}) can access permissions management. Please contact agency leadership.`,
       403
     ) as unknown as NextResponse<ApiResponse<AccessControlData>>;
   }
@@ -57,6 +60,7 @@ export async function GET(
         options: ACCESS_OPTION_MODULES,
         allPermissions: PERMISSIONS,
         ownerEmail: KIRA_OWNER_EMAIL,
+        ownerEmails: KIRA_OWNER_EMAILS,
         managerEmail: KIRA_MANAGER_EMAIL,
       },
     });
@@ -128,10 +132,7 @@ export async function PATCH(
 
     // Protect Owner & Manager accounts from arbitrary permission restrictions
     const targetEmail = (target.email || '').trim().toLowerCase();
-    if (
-      targetEmail === KIRA_OWNER_EMAIL.toLowerCase() ||
-      targetEmail === KIRA_MANAGER_EMAIL.toLowerCase()
-    ) {
+    if (isOwnerOrManagerEmail(targetEmail)) {
       return authErrorResponse(
         'LEADERSHIP_PERMISSIONS_IMMUTABLE',
         'The Owner and Manager permanently possess full access across all agency systems.',

@@ -94,7 +94,7 @@ KIRA/
 
 ### 2. Fine-Grained Access Control & RBAC
 - **Designated Leadership Accounts**:
-  - **Agency Owner**: `theshivaaysoul@gmail.com` (Unrestricted administrative authority)
+  - **Agency Owners**: `theshivaaysoul@gmail.com`, `meenasumit220@gmail.com` (Unrestricted administrative authority)
   - **Agency Manager**: `teamofkira@gmail.com` (Full operational management)
 - **Granular Custom Grants**: Ability to toggle 12 distinct functional modules across Operations, Content, and System Administration.
 - **Client & Server Guardrails**: Frontend controls backed by atomic server-side authorization checks (`requirePermission`).

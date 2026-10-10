@@ -201,11 +201,11 @@ export async function getCurrentTeamMember(req: NextRequest): Promise<AuthContex
     }
 
     // Global Rule:
-    // Owner - "theshivaaysoul@gmail.com" -> OWNER (Full access to everything)
+    // Owners - "theshivaaysoul@gmail.com", "meenasumit220@gmail.com" -> OWNER (Full access to everything)
     // Manager - "teamofkira@gmail.com" -> MANAGER (Full access to everything)
     // Every other user MUST be a MEMBER, not a manager or owner.
     const userEmail = (email || member.email || '').trim().toLowerCase();
-    if (userEmail === KIRA_OWNER_EMAIL.toLowerCase()) {
+    if (isAgencyOwnerEmail(userEmail)) {
       if (member.role !== 'OWNER') {
         try {
           member = await teamRepo.update(member.id, { role: 'OWNER' });
@@ -553,11 +553,11 @@ export async function validateRoleChange(
   // 3. Global Rule: Only designated Owner and Manager accounts can hold Owner or Manager roles
   if (newRole && (newRole === 'OWNER' || newRole === 'MANAGER' || newRole === 'ADMIN')) {
     const targetEmail = (target.email || '').trim().toLowerCase();
-    if (newRole === 'OWNER' && targetEmail !== KIRA_OWNER_EMAIL.toLowerCase()) {
+    if (newRole === 'OWNER' && !isAgencyOwnerEmail(targetEmail)) {
       return {
         allowed: false,
         code: 'FORBIDDEN_OWNER_ROLE_RESTRICTED',
-        message: 'Only the authorized agency owner (theshivaaysoul@gmail.com) can hold the Owner role. Please contact the Owner or Manager of KIRA Agency.',
+        message: 'Only authorized agency owners (theshivaaysoul@gmail.com, meenasumit220@gmail.com) can hold the Owner role. Please contact the Owner or Manager of KIRA Agency.',
       };
     }
     if (newRole === 'MANAGER' && targetEmail !== KIRA_MANAGER_EMAIL.toLowerCase()) {
@@ -571,7 +571,7 @@ export async function validateRoleChange(
       return {
         allowed: false,
         code: 'FORBIDDEN_ROLE_RESTRICTED',
-        message: 'Only the Owner (theshivaaysoul@gmail.com) or Manager (teamofkira@gmail.com) of KIRA Agency can hold elevated roles.',
+        message: 'Only an Owner or Manager of KIRA Agency can hold elevated roles.',
       };
     }
   }

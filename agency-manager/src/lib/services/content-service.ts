@@ -4,7 +4,7 @@
 // relationship protection, GCS persistence, and audit logging.
 
 import { getRepositories } from '@/lib/repositories';
-import { ValidationError, NotFoundError } from '@/lib/repositories/base-json-repository';
+import { ValidationError, NotFoundError, BaseJsonRepository } from '@/lib/repositories/base-json-repository';
 import type {
   Content,
   ContentStatus,
@@ -56,6 +56,7 @@ export interface ContentQueryOptions {
   page?: number;
   pageSize?: number;
   view?: 'active' | 'archived' | 'bin' | 'feed';
+  shuffle?: boolean;
 }
 
 export const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -234,19 +235,12 @@ export async function listContent(
   });
 
   // Sort
-  if (view === 'feed') {
-    // Feed Order: 1. Latest active, 2. Latest archived, 3. Latest soft-deleted, within each category: updatedAt DESC
-    filtered.sort((a, b) => {
-      const getCategoryScore = (item: typeof a) => {
-        if (item.deletedAt) return 3; // soft-deleted
-        if (item.status === 'ARCHIVED') return 2; // archived
-        return 1; // active
-      };
-      const catA = getCategoryScore(a);
-      const catB = getCategoryScore(b);
-      if (catA !== catB) return catA - catB;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    });
+  if (options.shuffle || view === 'feed') {
+    // Shuffled feed order: randomize every time user opens website or refreshes
+    for (let i = filtered.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+    }
   } else {
     const sortField = options.sortBy ?? 'updatedAt';
     const sortOrder = options.sortOrder === 'asc' ? 1 : -1;
@@ -534,8 +528,26 @@ export async function restoreFromArchived(
 
   const restoredStatus = targetStatus || 'IDEA';
 
+  // 1. Reset completion on all platform targets for this content item
+  // so the restored content is truly active and not immediately auto-archived back
+  const existingTargets = await repos.contentPlatformTargets.findByContentId(id);
+  for (const t of existingTargets) {
+    if (t.completed) {
+      await repos.contentPlatformTargets.unmarkCompleted({
+        contentId: id,
+        platformId: t.platformId,
+      });
+    }
+  }
+
+  // 2. Clear repository cache for fresh state
+  BaseJsonRepository.invalidateCache('database/content.json');
+  BaseJsonRepository.invalidateCache('database/content-platform-targets.json');
+
   const updated = await repos.content.update(id, {
     status: restoredStatus,
+    deletedAt: null,
+    deletedFromStatus: null,
   });
 
   await logSecurityActivity(actor.authUid || actor.id, 'UPDATE', 'Content', id, {

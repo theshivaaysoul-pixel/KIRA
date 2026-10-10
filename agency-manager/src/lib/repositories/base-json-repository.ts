@@ -44,8 +44,18 @@ export class BaseJsonRepository<
 > {
   // Simple mutex per storage path to prevent race conditions during read-modify-write
   private static fileLocks = new Map<string, Promise<unknown>>();
+  // In-memory cache with short 15s TTL to eliminate redundant remote network calls for unchanged collections
+  private static memoryCache = new Map<string, { data: unknown[]; checksum: string; expiresAt: number }>();
   protected readonly safetyService: DataSafetyService;
   protected lastChecksum?: string;
+
+  static invalidateCache(storagePath?: string): void {
+    if (storagePath) {
+      BaseJsonRepository.memoryCache.delete(storagePath);
+    } else {
+      BaseJsonRepository.memoryCache.clear();
+    }
+  }
 
   constructor(
     protected readonly storagePath: string,
@@ -75,6 +85,12 @@ export class BaseJsonRepository<
   }
 
   protected async readRaw(): Promise<T[]> {
+    const cached = BaseJsonRepository.memoryCache.get(this.storagePath);
+    if (cached && cached.expiresAt > Date.now()) {
+      this.lastChecksum = cached.checksum;
+      return [...(cached.data as T[])];
+    }
+
     try {
       const result = await this.safetyService.safeReadJson(
         this.storagePath,
@@ -82,6 +98,11 @@ export class BaseJsonRepository<
         []
       );
       this.lastChecksum = result.checksum;
+      BaseJsonRepository.memoryCache.set(this.storagePath, {
+        data: result.data,
+        checksum: result.checksum,
+        expiresAt: Date.now() + 15000,
+      });
       return result.data;
     } catch (err) {
       if (err instanceof StorageCorruptionError) {
@@ -106,6 +127,11 @@ export class BaseJsonRepository<
         createBackupBeforeWrite: items.length > 0,
       });
       this.lastChecksum = res.checksum;
+      BaseJsonRepository.memoryCache.set(this.storagePath, {
+        data: validationResult.data,
+        checksum: res.checksum,
+        expiresAt: Date.now() + 15000,
+      });
     } catch (err) {
       if (err instanceof StorageVerificationError) {
         throw new DataIntegrityError(err.message, err);

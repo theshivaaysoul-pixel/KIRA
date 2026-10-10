@@ -120,7 +120,7 @@ export default function DashboardPage() {
       )}
 
       {/* 7. Content Feed Add-On */}
-      <ScrollReveal delay={120}>
+      <ScrollReveal delay={120} threshold={0}>
         <ContentFeed />
       </ScrollReveal>
     </div>

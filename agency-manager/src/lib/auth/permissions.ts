@@ -3,7 +3,7 @@
 // Evaluated server-side on every protected API and operation.
 //
 // Rules:
-// - Owner: "theshivaaysoul@gmail.com" (Full access to everything)
+// - Owners: "theshivaaysoul@gmail.com", "meenasumit220@gmail.com" (Full access to everything)
 // - Manager: "teamofkira@gmail.com" (Full access to everything)
 // - Members cannot access: Activity, Infra, Data Health, Platform Audit
 
@@ -183,20 +183,26 @@ export const ROLE_PERMISSIONS: Record<TeamRole, readonly Permission[]> = {
 
 /**
  * Designated agency leadership emails.
- * Owner: theshivaaysoul@gmail.com
+ * Owners: theshivaaysoul@gmail.com, meenasumit220@gmail.com
  * Manager: teamofkira@gmail.com
  */
 export const KIRA_OWNER_EMAIL = 'theshivaaysoul@gmail.com';
+export const KIRA_CO_OWNER_EMAIL = 'meenasumit220@gmail.com';
+export const KIRA_OWNER_EMAILS: readonly string[] = [
+  'theshivaaysoul@gmail.com',
+  'meenasumit220@gmail.com',
+];
 export const KIRA_MANAGER_EMAIL = 'teamofkira@gmail.com';
 
 export const OWNER_EMAILS: readonly string[] = [
-  KIRA_OWNER_EMAIL,
+  ...KIRA_OWNER_EMAILS,
   KIRA_MANAGER_EMAIL,
 ];
 
 export function isAgencyOwnerEmail(email?: string | null): boolean {
   if (!email) return false;
-  return email.trim().toLowerCase() === KIRA_OWNER_EMAIL.toLowerCase();
+  const normalized = email.trim().toLowerCase();
+  return KIRA_OWNER_EMAILS.some((ownerEmail) => ownerEmail.toLowerCase() === normalized);
 }
 
 export function isAgencyManagerEmail(email?: string | null): boolean {
@@ -208,7 +214,7 @@ export function isOwnerOrManagerEmail(email?: string | null): boolean {
   if (!email) return false;
   const normalized = email.trim().toLowerCase();
   return (
-    normalized === KIRA_OWNER_EMAIL.toLowerCase() ||
+    isAgencyOwnerEmail(normalized) ||
     normalized === KIRA_MANAGER_EMAIL.toLowerCase()
   );
 }

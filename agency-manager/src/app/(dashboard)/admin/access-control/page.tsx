@@ -328,7 +328,7 @@ export default function AccessControlPage() {
     return (
       <AccessRestrictedCard
         featureName="Access Management & Permissions"
-        description="Only the Owner (theshivaaysoul@gmail.com) and Manager (teamofkira@gmail.com) can grant access or configure permissions for agency members."
+        description="Only the Agency Owners and Manager can grant access or configure permissions for agency members."
       />
     );
   }
@@ -644,7 +644,7 @@ export default function AccessControlPage() {
                     </p>
                     <p className="text-purple-300/80 leading-relaxed">
                       {selectedMember.role === 'OWNER'
-                        ? `The Agency Owner (${KIRA_OWNER_EMAIL}) permanently retains unrestricted access across all systems.`
+                        ? `The Agency Owner (${selectedMember.email}) permanently retains unrestricted access across all systems.`
                         : `The Agency Manager (${KIRA_MANAGER_EMAIL}) permanently retains unrestricted access across all systems.`}
                       Individual permissions cannot be revoked from leadership roles.
                     </p>

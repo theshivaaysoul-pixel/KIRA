@@ -37,9 +37,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const rawView = sp.get('view');
     const view: 'active' | 'archived' | 'bin' | 'feed' =
       rawView === 'archived' || rawView === 'bin' || rawView === 'feed' ? rawView : 'active';
+    const shuffle = sp.get('shuffle') === 'true' || view === 'feed';
 
     const result = await listContent(
-      { search, contentType, status, platformId, createdBy, sortBy, sortOrder, page, pageSize, view },
+      { search, contentType, status, platformId, createdBy, sortBy, sortOrder, page, pageSize, view, shuffle },
       member!
     );
 

@@ -59,6 +59,7 @@ function getDriveClient(): drive_v3.Drive {
 export class DriveStorageService implements IStorageService {
   private drive: drive_v3.Drive | null = null;
   private folderCache = new Map<string, string>();
+  private fileIdCache = new Map<string, string>();
   private bufferCache = new Map<string, { buffer: Buffer; expiresAt: number }>();
 
   private getClient(): drive_v3.Drive {
@@ -249,6 +250,11 @@ export class DriveStorageService implements IStorageService {
   }
 
   private async findFileInFolder(fileName: string, parentFolderId: string): Promise<string | null> {
+    const cacheKey = `${parentFolderId}/${fileName}`;
+    if (this.fileIdCache.has(cacheKey)) {
+      return this.fileIdCache.get(cacheKey)!;
+    }
+
     const drive = this.getClient();
     const escapedFileName = fileName.replace(/'/g, "\\'");
     const res = await drive.files.list({
@@ -257,7 +263,11 @@ export class DriveStorageService implements IStorageService {
       spaces: 'drive',
       pageSize: 1,
     });
-    return res.data.files && res.data.files.length > 0 ? res.data.files[0].id! : null;
+    const id = res.data.files && res.data.files.length > 0 ? res.data.files[0].id! : null;
+    if (id) {
+      this.fileIdCache.set(cacheKey, id);
+    }
+    return id;
   }
 
   async exists(objectName: string): Promise<boolean> {
@@ -315,7 +325,8 @@ export class DriveStorageService implements IStorageService {
       webViewLink = res.data.webViewLink || undefined;
     }
 
-    // Cache uploaded buffer for instant subsequent reads & streaming
+    // Cache fileId and buffer for instant subsequent reads & streaming
+    this.fileIdCache.set(`${folderId}/${fileName}`, fileId);
     this.bufferCache.set(params.objectName, {
       buffer: params.buffer,
       expiresAt: Date.now() + 15 * 60 * 1000, // 15 mins cache
@@ -369,6 +380,7 @@ export class DriveStorageService implements IStorageService {
 
     if (objectName.includes('/') || objectName.endsWith('.json') || objectName.endsWith('.txt')) {
       const { folderId, fileName } = await this.resolvePathAndFolder(objectName);
+      this.fileIdCache.delete(`${folderId}/${fileName}`);
       const foundId = await this.findFileInFolder(fileName, folderId);
       if (!foundId) return; // already deleted
       fileId = foundId;

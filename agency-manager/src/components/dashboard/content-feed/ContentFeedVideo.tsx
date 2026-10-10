@@ -190,7 +190,7 @@ export function ContentFeedVideo({
       ref={containerRef}
       onMouseMove={triggerControls}
       onClick={togglePlay}
-      className="relative w-full h-full min-h-[220px] bg-black flex items-center justify-center overflow-hidden cursor-pointer select-none group"
+      className="relative w-full h-full min-h-[160px] sm:min-h-[220px] bg-black flex items-center justify-center overflow-hidden cursor-pointer select-none group"
     >
       {/* HTML5 Native Video Stream */}
       <video

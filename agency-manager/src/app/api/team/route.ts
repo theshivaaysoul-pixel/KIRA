@@ -3,7 +3,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission, authErrorResponse, logSecurityActivity } from '@/lib/auth/authorization';
-import { isAgencyOwnerEmail } from '@/lib/auth/permissions';
+import {
+  isAgencyOwnerEmail,
+  isAgencyManagerEmail,
+  isOwnerOrManagerEmail,
+} from '@/lib/auth/permissions';
 import { getTeamMemberRepository } from '@/lib/repositories';
 import { CreateTeamMemberSchema } from '@/lib/validation';
 import type { ApiResponse, TeamMember } from '@/lib/types';
@@ -46,26 +50,26 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<T
 
     const payload = validationResult.data;
 
-    // Global rule: Only designated Owner (theshivaaysoul@gmail.com) and Manager (teamofkira@gmail.com) can hold elevated roles
+    // Global rule: Only designated Owners (theshivaaysoul@gmail.com, meenasumit220@gmail.com) and Manager (teamofkira@gmail.com) can hold elevated roles
     const targetEmail = payload.email.trim().toLowerCase();
-    if (payload.role === 'OWNER' && targetEmail !== 'theshivaaysoul@gmail.com') {
+    if (payload.role === 'OWNER' && !isAgencyOwnerEmail(targetEmail)) {
       return authErrorResponse(
         'FORBIDDEN_OWNER_ROLE_RESTRICTED',
-        'Only the authorized agency owner (theshivaaysoul@gmail.com) can hold the Owner role. Please contact the Owner or Manager of KIRA Agency.',
+        'Only authorized agency owners (theshivaaysoul@gmail.com, meenasumit220@gmail.com) can hold the Owner role. Please contact the Owner or Manager of KIRA Agency.',
         403
       ) as unknown as NextResponse<ApiResponse<TeamMember>>;
     }
-    if (payload.role === 'MANAGER' && targetEmail !== 'teamofkira@gmail.com') {
+    if (payload.role === 'MANAGER' && !isAgencyManagerEmail(targetEmail)) {
       return authErrorResponse(
         'FORBIDDEN_MANAGER_ROLE_RESTRICTED',
         'Only the authorized agency manager (teamofkira@gmail.com) can hold the Manager role. Please contact the Owner or Manager of KIRA Agency.',
         403
       ) as unknown as NextResponse<ApiResponse<TeamMember>>;
     }
-    if (payload.role === 'ADMIN' && targetEmail !== 'theshivaaysoul@gmail.com' && targetEmail !== 'teamofkira@gmail.com') {
+    if (payload.role === 'ADMIN' && !isOwnerOrManagerEmail(targetEmail)) {
       return authErrorResponse(
         'FORBIDDEN_ADMIN_ROLE_RESTRICTED',
-        'Administrative roles are restricted. Please contact the Owner (theshivaaysoul@gmail.com) or Manager (teamofkira@gmail.com) of KIRA Agency.',
+        'Administrative roles are restricted. Please contact an Owner or Manager of KIRA Agency.',
         403
       ) as unknown as NextResponse<ApiResponse<TeamMember>>;
     }

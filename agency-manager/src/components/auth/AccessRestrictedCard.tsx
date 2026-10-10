@@ -5,7 +5,7 @@
 
 import Link from 'next/link';
 import { ShieldAlert, ArrowLeft, Mail } from 'lucide-react';
-import { KIRA_OWNER_EMAIL, KIRA_MANAGER_EMAIL } from '@/lib/auth/permissions';
+import { KIRA_OWNER_EMAILS, KIRA_MANAGER_EMAIL } from '@/lib/auth/permissions';
 
 interface AccessRestrictedCardProps {
   featureName: string;
@@ -30,7 +30,7 @@ export function AccessRestrictedCard({
         <p className="text-sm text-[rgb(var(--text-secondary))] mb-5 leading-relaxed">
           Members are not permitted to access{' '}
           <span className="font-semibold text-[rgb(var(--text-primary))]">{featureName}</span>.
-          {description ? ` ${description}` : ' Only the Owner and Manager can access this resource.'}
+          {description ? ` ${description}` : ' Only the Owners and Manager can access this resource.'}
         </p>
 
         {/* Contact Owner / Manager callout box */}
@@ -40,18 +40,20 @@ export function AccessRestrictedCard({
             <span>Contact KIRA Agency Leadership</span>
           </div>
           <p className="text-xs text-[rgb(var(--text-muted))] leading-normal">
-            If you need access to this section, please contact the Owner or Manager of KIRA Agency:
+            If you need access to this section, please contact an Owner or Manager of KIRA Agency:
           </p>
           <div className="pt-1 space-y-1.5 text-xs">
-            <div className="flex items-center justify-between p-2 rounded-lg bg-[rgb(var(--bg-surface))] border border-[rgb(var(--border))]">
-              <span className="font-semibold text-[rgb(var(--text-primary))]">Owner</span>
-              <a
-                href={`mailto:${KIRA_OWNER_EMAIL}`}
-                className="font-mono text-xs font-medium text-[rgb(var(--primary))] hover:underline"
-              >
-                {KIRA_OWNER_EMAIL}
-              </a>
-            </div>
+            {KIRA_OWNER_EMAILS.map((ownerEmail) => (
+              <div key={ownerEmail} className="flex items-center justify-between p-2 rounded-lg bg-[rgb(var(--bg-surface))] border border-[rgb(var(--border))]">
+                <span className="font-semibold text-[rgb(var(--text-primary))]">Owner</span>
+                <a
+                  href={`mailto:${ownerEmail}`}
+                  className="font-mono text-xs font-medium text-[rgb(var(--primary))] hover:underline"
+                >
+                  {ownerEmail}
+                </a>
+              </div>
+            ))}
             <div className="flex items-center justify-between p-2 rounded-lg bg-[rgb(var(--bg-surface))] border border-[rgb(var(--border))]">
               <span className="font-semibold text-[rgb(var(--text-primary))]">Manager</span>
               <a

@@ -51,6 +51,34 @@ function AmbientCursorGlow({ enabled, reducedMotion }: { enabled: boolean; reduc
     const isTouchOnly = window.matchMedia('(pointer: coarse)').matches;
     if (isTouchOnly) return;
 
+    let isRunning = false;
+
+    const animate = () => {
+      const pos = posRef.current;
+      if (pos.isVisible && glowRef.current) {
+        // Smooth lerp interpolation for silky motion
+        pos.x += (pos.targetX - pos.x) * 0.12;
+        pos.y += (pos.targetY - pos.y) * 0.12;
+
+        glowRef.current.style.transform = `translate3d(${pos.x - 240}px, ${pos.y - 240}px, 0)`;
+
+        // Continue running RAF until cursor has settled at target
+        if (Math.abs(pos.targetX - pos.x) > 0.25 || Math.abs(pos.targetY - pos.y) > 0.25) {
+          rafRef.current = requestAnimationFrame(animate);
+          return;
+        }
+      }
+      isRunning = false;
+      rafRef.current = null;
+    };
+
+    const startAnimation = () => {
+      if (!isRunning) {
+        isRunning = true;
+        rafRef.current = requestAnimationFrame(animate);
+      }
+    };
+
     const onPointerMove = (e: PointerEvent) => {
       posRef.current.targetX = e.clientX;
       posRef.current.targetY = e.clientY;
@@ -62,6 +90,7 @@ function AmbientCursorGlow({ enabled, reducedMotion }: { enabled: boolean; reduc
           glowRef.current.style.opacity = '1';
         }
       }
+      startAnimation();
     };
 
     const onMouseLeave = () => {
@@ -69,25 +98,15 @@ function AmbientCursorGlow({ enabled, reducedMotion }: { enabled: boolean; reduc
       if (glowRef.current) {
         glowRef.current.style.opacity = '0';
       }
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      isRunning = false;
     };
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     document.addEventListener('mouseleave', onMouseLeave);
-
-    // Smooth animation loop
-    const animate = () => {
-      const pos = posRef.current;
-      if (pos.isVisible && glowRef.current) {
-        // Smooth lerp interpolation for silky motion
-        pos.x += (pos.targetX - pos.x) * 0.12;
-        pos.y += (pos.targetY - pos.y) * 0.12;
-
-        glowRef.current.style.transform = `translate3d(${pos.x - 240}px, ${pos.y - 240}px, 0)`;
-      }
-      rafRef.current = requestAnimationFrame(animate);
-    };
-
-    rafRef.current = requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener('pointermove', onPointerMove);
