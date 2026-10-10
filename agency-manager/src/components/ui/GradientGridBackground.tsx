@@ -41,12 +41,43 @@ export function GradientGridBackground() {
     let lastMoveTime = Date.now();
     const ripples: Ripple[] = [];
 
-    // Configuration — ultra-fine micro-grid density & delicate point sizing
-    const CELL_SIZE = 12; // High-density micro-matrix
-    const GRAVITY_RADIUS = 240; // Distance of gravitational influence
-    const MAX_PULL = 22; // Subtle, elegant spacetime displacement
+    // Responsive configuration helper — minimizes grid size & radius on mobile
+    const getResponsiveConfig = (w: number) => {
+      const isMobile = w < 640;
+      const isTablet = w < 1024;
+
+      if (isMobile) {
+        return {
+          cellSize: 8, // Minimized micro-grid size for mobile
+          basePointSize: 0.42, // Delicate smaller micro-dots
+          gravityRadius: Math.min(105, Math.max(75, Math.round(w * 0.24))), // Compact radius for mobile
+          maxPull: 10, // Proportional gentle displacement
+          maxRippleRadius: Math.min(w * 0.45, 140),
+          ambientScale: 0.28,
+        };
+      } else if (isTablet) {
+        return {
+          cellSize: 10,
+          basePointSize: 0.50,
+          gravityRadius: 180,
+          maxPull: 16,
+          maxRippleRadius: 220,
+          ambientScale: 0.35,
+        };
+      } else {
+        return {
+          cellSize: 12,
+          basePointSize: 0.55,
+          gravityRadius: 240,
+          maxPull: 22,
+          maxRippleRadius: 320,
+          ambientScale: 0.42,
+        };
+      }
+    };
+
+    let config = getResponsiveConfig(typeof window !== 'undefined' ? window.innerWidth : 1200);
     const SWIRL_STRENGTH = 0.30; // Relativistic frame-drag swirl factor
-    const BASE_POINT_SIZE = 0.55; // Delicate micro-dots
 
     // Pre-rendered offscreen canvas for static background dots
     let offscreenCanvas: HTMLCanvasElement | null = null;
@@ -71,12 +102,14 @@ export function GradientGridBackground() {
         ? 'rgba(255, 255, 255, 0.11)'
         : 'rgba(99, 102, 241, 0.13)';
 
+      const { cellSize, basePointSize } = config;
+
       offCtx.beginPath();
       offCtx.fillStyle = basePointColor;
-      for (let x0 = 0; x0 <= width; x0 += CELL_SIZE) {
-        for (let y0 = 0; y0 <= height; y0 += CELL_SIZE) {
-          offCtx.moveTo(x0 + BASE_POINT_SIZE, y0);
-          offCtx.arc(x0, y0, BASE_POINT_SIZE, 0, Math.PI * 2);
+      for (let x0 = 0; x0 <= width; x0 += cellSize) {
+        for (let y0 = 0; y0 <= height; y0 += cellSize) {
+          offCtx.moveTo(x0 + basePointSize, y0);
+          offCtx.arc(x0, y0, basePointSize, 0, Math.PI * 2);
         }
       }
       offCtx.fill();
@@ -88,6 +121,7 @@ export function GradientGridBackground() {
       dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       width = window.innerWidth;
       height = window.innerHeight;
+      config = getResponsiveConfig(width);
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
       canvas.style.width = `${width}px`;
@@ -155,7 +189,7 @@ export function GradientGridBackground() {
         x: e.clientX,
         y: e.clientY,
         radius: 8,
-        maxRadius: Math.min(width * 0.75, 320),
+        maxRadius: config.maxRippleRadius,
         alpha: 0.9,
       });
     };
@@ -186,7 +220,7 @@ export function GradientGridBackground() {
           x: touch.clientX,
           y: touch.clientY,
           radius: 8,
-          maxRadius: Math.min(width * 0.75, 280),
+          maxRadius: config.maxRippleRadius,
           alpha: 0.9,
         });
       }
@@ -233,6 +267,7 @@ export function GradientGridBackground() {
       const isDark =
         document.documentElement.classList.contains('dark') ||
         resolvedTheme === 'dark';
+      const isMobile = width < 640;
 
       // Faster, responsive spring lerp when actively touching or dragging
       const lerpSpeed = isTouching ? 0.24 : 0.095;
@@ -242,8 +277,8 @@ export function GradientGridBackground() {
       // Idle autonomous subtle drift only after 2.8s of inactivity and not touching
       const isIdle = Date.now() - lastMoveTime > 2800 && !isTouching;
       if (isIdle) {
-        const driftX = width / 2 + Math.cos(time * 0.65) * (width * 0.28);
-        const driftY = height / 2 + Math.sin(time * 0.95) * (height * 0.22);
+        const driftX = width / 2 + Math.cos(time * 0.65) * (width * (isMobile ? 0.18 : 0.28));
+        const driftY = height / 2 + Math.sin(time * 0.95) * (height * (isMobile ? 0.15 : 0.22));
         mouse.targetX = driftX;
         mouse.targetY = driftY;
       }
@@ -252,36 +287,34 @@ export function GradientGridBackground() {
 
       // ─── 1. Ambient Colorful Gradient Aura (Slow Moving Mesh) ───────────
       // Blob 1: Deep Violet / Indigo
-      const b1x = width * 0.3 + Math.cos(time * 0.45) * 140;
-      const b1y = height * 0.35 + Math.sin(time * 0.55) * 110;
-      const g1 = ctx.createRadialGradient(b1x, b1y, 0, b1x, b1y, width * 0.42);
+      const b1x = width * 0.3 + Math.cos(time * 0.45) * (isMobile ? 55 : 140);
+      const b1y = height * 0.35 + Math.sin(time * 0.55) * (isMobile ? 45 : 110);
+      const g1 = ctx.createRadialGradient(b1x, b1y, 0, b1x, b1y, width * config.ambientScale);
       g1.addColorStop(0, isDark ? 'rgba(124, 58, 237, 0.15)' : 'rgba(139, 92, 246, 0.11)');
       g1.addColorStop(1, 'rgba(124, 58, 237, 0)');
       ctx.fillStyle = g1;
       ctx.fillRect(0, 0, width, height);
 
       // Blob 2: Vibrant Cyan / Sky
-      const b2x = width * 0.72 + Math.sin(time * 0.4) * 150;
-      const b2y = height * 0.62 + Math.cos(time * 0.5) * 120;
-      const g2 = ctx.createRadialGradient(b2x, b2y, 0, b2x, b2y, width * 0.38);
+      const b2x = width * 0.72 + Math.sin(time * 0.4) * (isMobile ? 60 : 150);
+      const b2y = height * 0.62 + Math.cos(time * 0.5) * (isMobile ? 50 : 120);
+      const g2 = ctx.createRadialGradient(b2x, b2y, 0, b2x, b2y, width * (config.ambientScale * 0.9));
       g2.addColorStop(0, isDark ? 'rgba(6, 182, 212, 0.13)' : 'rgba(14, 165, 233, 0.10)');
       g2.addColorStop(1, 'rgba(6, 182, 212, 0)');
       ctx.fillStyle = g2;
       ctx.fillRect(0, 0, width, height);
 
       // Blob 3: Neon Magenta / Rose
-      const b3x = width * 0.5 + Math.cos(time * 0.75) * 120;
-      const b3y = height * 0.82 + Math.sin(time * 0.65) * 90;
-      const g3 = ctx.createRadialGradient(b3x, b3y, 0, b3x, b3y, width * 0.35);
+      const b3x = width * 0.5 + Math.cos(time * 0.75) * (isMobile ? 50 : 120);
+      const b3y = height * 0.82 + Math.sin(time * 0.65) * (isMobile ? 40 : 90);
+      const g3 = ctx.createRadialGradient(b3x, b3y, 0, b3x, b3y, width * (config.ambientScale * 0.85));
       g3.addColorStop(0, isDark ? 'rgba(236, 72, 153, 0.11)' : 'rgba(244, 63, 94, 0.08)');
       g3.addColorStop(1, 'rgba(236, 72, 153, 0)');
       ctx.fillStyle = g3;
       ctx.fillRect(0, 0, width, height);
 
       // ─── 2. Gravitational Core Glow Behind Points ────────────────────────
-      const isMobile = width < 640;
-      const gravityRadius = isMobile ? Math.min(210, Math.max(160, width * 0.48)) : GRAVITY_RADIUS;
-      const maxPull = isMobile ? 18 : MAX_PULL;
+      const { gravityRadius, maxPull, cellSize, basePointSize } = config;
 
       const coreGrad = ctx.createRadialGradient(
         mouse.x,
@@ -311,7 +344,6 @@ export function GradientGridBackground() {
       );
 
       // ─── 3. Gravitational Dot Matrix (No lines, points only) ─────────────
-      const basePointSize = BASE_POINT_SIZE;
       const gravRadSq = gravityRadius * gravityRadius;
 
       // Color palette chromatic stops for warped points:
@@ -343,14 +375,14 @@ export function GradientGridBackground() {
       }
 
       // Gravitational bounding box around cursor for active warping
-      const minX = Math.max(0, Math.floor((mouse.x - gravityRadius) / CELL_SIZE) * CELL_SIZE);
-      const maxX = Math.min(width, Math.ceil((mouse.x + gravityRadius) / CELL_SIZE) * CELL_SIZE);
-      const minY = Math.max(0, Math.floor((mouse.y - gravityRadius) / CELL_SIZE) * CELL_SIZE);
-      const maxY = Math.min(height, Math.ceil((mouse.y + gravityRadius) / CELL_SIZE) * CELL_SIZE);
+      const minX = Math.max(0, Math.floor((mouse.x - gravityRadius) / cellSize) * cellSize);
+      const maxX = Math.min(width, Math.ceil((mouse.x + gravityRadius) / cellSize) * cellSize);
+      const minY = Math.max(0, Math.floor((mouse.y - gravityRadius) / cellSize) * cellSize);
+      const maxY = Math.min(height, Math.ceil((mouse.y + gravityRadius) / cellSize) * cellSize);
 
       // Render warped points inside the gravitational field with spacetime displacement
-      for (let x0 = minX; x0 <= maxX; x0 += CELL_SIZE) {
-        for (let y0 = minY; y0 <= maxY; y0 += CELL_SIZE) {
+      for (let x0 = minX; x0 <= maxX; x0 += cellSize) {
+        for (let y0 = minY; y0 <= maxY; y0 += cellSize) {
           const dx = mouse.x - x0;
           const dy = mouse.y - y0;
           const distSq = dx * dx + dy * dy;
