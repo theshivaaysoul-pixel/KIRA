@@ -24,8 +24,9 @@
  * File IDs from Drive are stored in Firestore as the reference.
  */
 
+const fs = require('fs');
 const path = require('path');
-const { Readable } = require('stream');
+const { Readable, pipeline } = require('stream');
 const { v4: uuidv4 } = require('uuid');
 const { getDriveClient } = require('../config/storage');
 
@@ -180,13 +181,15 @@ async function ensureUserCategoryFolder(userId, category) {
  * @param {object} params
  * @param {string} params.userId
  * @param {string} params.category
- * @param {Buffer} params.buffer
+ * @param {Buffer} [params.buffer]
+ * @param {string} [params.filePath]
+ * @param {import('stream').Readable} [params.stream]
  * @param {string} params.mimetype
  * @param {string} params.originalname
  * @param {number} params.size
  * @returns {Promise<{driveFileId: string, driveName: string, webViewLink: string}>}
  */
-async function uploadFile({ userId, category, buffer, mimetype, originalname, size }) {
+async function uploadFile({ userId, category, buffer, filePath, stream, mimetype, originalname, size }) {
   validateFile({ mimetype, size, originalname });
 
   const folderId = await ensureUserCategoryFolder(userId, category);
@@ -195,8 +198,17 @@ async function uploadFile({ userId, category, buffer, mimetype, originalname, si
 
   console.log(`[Drive] Upload started: ${safeName} (${size} bytes, ${mimetype}) → folder ${folderId}`);
 
-  // Convert buffer to readable stream for Drive API
-  const bufferStream = Readable.from(buffer);
+  // Create stream: stream from disk file or buffer to avoid keeping large Buffers in RAM
+  let mediaStream;
+  if (stream) {
+    mediaStream = stream;
+  } else if (filePath) {
+    mediaStream = fs.createReadStream(filePath);
+  } else if (buffer) {
+    mediaStream = Readable.from(buffer);
+  } else {
+    throw new Error('No upload content provided (filePath, stream, or buffer is required).');
+  }
 
   const res = await drive.files.create({
     requestBody: {
@@ -206,7 +218,7 @@ async function uploadFile({ userId, category, buffer, mimetype, originalname, si
     },
     media: {
       mimeType: mimetype,
-      body: bufferStream,
+      body: mediaStream,
     },
     fields: 'id, name, webViewLink, size, mimeType',
   });
@@ -266,7 +278,19 @@ async function streamFileToResponse(driveFileId, res) {
     { responseType: 'stream' }
   );
 
-  fileRes.data.pipe(res);
+  // Clean up upstream stream if client disconnects or aborts early
+  res.on('close', () => {
+    if (!res.writableEnded && fileRes.data && !fileRes.data.destroyed) {
+      fileRes.data.destroy();
+    }
+  });
+
+  pipeline(fileRes.data, res, (err) => {
+    if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+      console.error(`[Drive Stream] Error streaming ${driveFileId}:`, err);
+    }
+  });
+
   console.log(`[Drive] Streaming file to response: ${name} (${driveFileId})`);
 }
 

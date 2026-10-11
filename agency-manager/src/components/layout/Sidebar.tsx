@@ -32,6 +32,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { Tooltip } from '@/components/motion';
+import { GlobalSearch } from './GlobalSearch';
 
 interface SecureNavItem extends NavItem {
   permission: Permission;
@@ -110,6 +111,11 @@ export function Sidebar() {
         >
           <X size={18} />
         </button>
+      </div>
+
+      {/* Mobile search bar downside of KIRA Agency in sidebar drawer */}
+      <div className="md:hidden px-3 pt-3 pb-2 border-b border-[rgb(var(--border))]">
+        <GlobalSearch onSelect={() => { if (isMobile) close(); }} />
       </div>
 
       {/* Navigation */}

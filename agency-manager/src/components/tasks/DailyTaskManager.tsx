@@ -430,6 +430,53 @@ export function DailyTaskManager() {
         </div>
       </div>
 
+      {/* ─── Status Filter Tabs (Always Available in Tasks) ─────────────────── */}
+      <div className="sticky top-14 sm:top-16 z-20 py-2 sm:py-2.5 bg-[rgb(var(--bg-base))]/90 backdrop-blur-md border-b border-[rgb(var(--border))]/40 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="w-full max-w-7xl 2xl:max-w-[1440px] mx-auto flex items-center justify-between gap-3 overflow-x-auto scrollbar-none py-0.5">
+          <div className="flex items-center gap-1.5 sm:gap-2 w-max">
+            {[
+              { id: 'ALL' as const, label: 'All', count: targetedPlatforms.length, icon: <Layers size={13} />, color: 'text-[rgb(var(--foreground))]' },
+              { id: 'IN_PROGRESS' as const, label: 'In Progress', count: inProgressCount, icon: <Clock size={13} />, color: 'text-amber-500' },
+              { id: 'COMPLETED' as const, label: 'Completed', count: completedCount, icon: <CheckCircle2 size={13} />, color: 'text-emerald-500' },
+              { id: 'OVERDUE' as const, label: 'Overdue', count: overdueCount, icon: <AlertTriangle size={13} />, color: 'text-rose-500' },
+              { id: 'UPCOMING' as const, label: 'Upcoming', count: upcomingCount, icon: <Calendar size={13} />, color: 'text-indigo-400' },
+            ].map((tab) => {
+              const isActive = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 border cursor-pointer ${
+                    isActive
+                      ? 'bg-[rgb(var(--primary))] text-white border-[rgb(var(--primary))] shadow-sm'
+                      : 'bg-[rgb(var(--card))] border-[rgb(var(--border))] text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] hover:border-[rgb(var(--border-strong))]'
+                  }`}
+                >
+                  <span className={isActive ? 'text-white' : tab.color}>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-[rgb(var(--muted))] text-[rgb(var(--muted-foreground))]'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <span className="text-xs text-[rgb(var(--muted-foreground))] hidden md:inline shrink-0 font-medium">
+            {targetedPlatforms.length > 0
+              ? `Showing ${filteredPlatforms.length} of ${targetedPlatforms.length} targets`
+              : '0 targets configured'}
+          </span>
+        </div>
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="flex items-center gap-2 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
@@ -574,52 +621,20 @@ export function DailyTaskManager() {
           {/* ─── Platform Targets Grid ──────────────────────────────────────── */}
           {targetedPlatforms.length > 0 && (
             <div className="flex flex-col gap-6 sm:gap-7 min-w-0 w-full">
-              {/* Header with status filter buttons to separate completed, overdue, in progress, and upcoming */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0 w-full">
+              {/* Section Header */}
+              <div className="flex items-center justify-between gap-4 min-w-0 w-full">
                 <div className="min-w-0">
                   <h2 className="text-sm font-bold uppercase tracking-wider text-[rgb(var(--muted-foreground))]">
                     Platform Targets
                   </h2>
                   <p className="text-xs text-[rgb(var(--muted-foreground))] mt-0.5">
                     Showing {filteredPlatforms.length} of {targetedPlatforms.length} configured targets
+                    {statusFilter !== 'ALL' && (
+                      <span className="font-semibold text-[rgb(var(--primary))] ml-1">
+                        ({statusFilter.toLowerCase().replace('_', ' ')})
+                      </span>
+                    )}
                   </p>
-                </div>
-
-                {/* Filter buttons - horizontally scrollable container constrained to mobile screen */}
-                <div className="w-full sm:w-auto max-w-full overflow-x-auto pb-1.5 sm:pb-0 scrollbar-none min-w-0 -mx-1 px-1 sm:mx-0 sm:px-0">
-                  <div className="flex items-center gap-1.5 w-max">
-                    {[
-                      { id: 'ALL' as const, label: 'All', count: targetedPlatforms.length, icon: <Layers size={13} />, color: 'text-[rgb(var(--foreground))]' },
-                      { id: 'IN_PROGRESS' as const, label: 'In Progress', count: inProgressCount, icon: <Clock size={13} />, color: 'text-amber-500' },
-                      { id: 'COMPLETED' as const, label: 'Completed', count: completedCount, icon: <CheckCircle2 size={13} />, color: 'text-emerald-500' },
-                      { id: 'OVERDUE' as const, label: 'Overdue', count: overdueCount, icon: <AlertTriangle size={13} />, color: 'text-rose-500' },
-                      { id: 'UPCOMING' as const, label: 'Upcoming', count: upcomingCount, icon: <Calendar size={13} />, color: 'text-indigo-400' },
-                    ].map((tab) => {
-                      const isActive = statusFilter === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setStatusFilter(tab.id)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 border ${isActive
-                              ? 'bg-[rgb(var(--primary))] text-white border-[rgb(var(--primary))] shadow-sm'
-                              : 'bg-[rgb(var(--card))] border-[rgb(var(--border))] text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] hover:border-[rgb(var(--border-strong))]'
-                            }`}
-                        >
-                          <span className={isActive ? 'text-white' : tab.color}>{tab.icon}</span>
-                          <span>{tab.label}</span>
-                          <span
-                            className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${isActive
-                                ? 'bg-white/20 text-white'
-                                : 'bg-[rgb(var(--muted))] text-[rgb(var(--muted-foreground))]'
-                              }`}
-                          >
-                            {tab.count}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
               </div>
 

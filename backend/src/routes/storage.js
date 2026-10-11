@@ -17,10 +17,21 @@ const storageController = require('../controllers/storageController');
 
 const router = express.Router();
 
-// In-memory storage — files go directly to Drive API
-// Drive supports up to 5GB per file (limited here to 500MB for server memory)
+const os = require('os');
+const { v4: uuidv4 } = require('uuid');
+
+// Disk storage in temporary directory — prevents memory exhaustion for large files
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, os.tmpdir());
+  },
+  filename: (req, file, cb) => {
+    cb(null, `kira-upload-${Date.now()}-${uuidv4()}`);
+  },
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB per request
 });
 

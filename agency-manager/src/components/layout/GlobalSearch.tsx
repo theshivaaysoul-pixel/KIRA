@@ -27,7 +27,13 @@ import {
 } from 'lucide-react';
 import type { SearchResultItem, GroupedSearchResults } from '@/lib/services/global-search-service';
 
-export function GlobalSearch() {
+export interface GlobalSearchProps {
+  onSelect?: () => void;
+  placeholder?: string;
+  className?: string;
+}
+
+export function GlobalSearch({ onSelect, placeholder = '', className }: GlobalSearchProps = {}) {
   const router = useRouter();
   const { getIdToken } = useAuth();
   const [query, setQuery] = useState('');
@@ -48,6 +54,11 @@ export function GlobalSearch() {
       // Don't intercept if user is typing in another input/textarea
       const target = e.target as HTMLElement;
       if (['INPUT', 'TEXTAREA'].includes(target.tagName) && target !== inputRef.current) {
+        return;
+      }
+
+      // Ignore if this input is hidden via display: none (e.g., hidden responsive element)
+      if (!inputRef.current || inputRef.current.offsetParent === null) {
         return;
       }
 
@@ -145,6 +156,7 @@ export function GlobalSearch() {
   const handleSelectResult = (item: SearchResultItem) => {
     setIsOpen(false);
     setQuery('');
+    onSelect?.();
     router.push(item.url);
   };
 
@@ -196,7 +208,7 @@ export function GlobalSearch() {
   };
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-md">
+    <div ref={containerRef} className={`relative w-full ${className || 'max-w-md'}`}>
       {/* Search Input Box */}
       <div className="relative flex items-center">
         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[rgb(var(--text-muted))]">
@@ -211,6 +223,8 @@ export function GlobalSearch() {
             if (query.trim()) setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          aria-label="Search"
           className="w-full h-9 pl-10 pr-8 text-xs rounded-xl border border-[rgb(var(--border))]
                      bg-[rgb(var(--bg-subtle))] text-[rgb(var(--text-primary))]
                      focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary))]/25 focus:border-[rgb(var(--primary))]

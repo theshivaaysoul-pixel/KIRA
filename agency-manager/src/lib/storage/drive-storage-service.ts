@@ -62,6 +62,40 @@ export class DriveStorageService implements IStorageService {
   private fileIdCache = new Map<string, string>();
   private bufferCache = new Map<string, { buffer: Buffer; expiresAt: number }>();
 
+  // Heap safety: max 5MB per cached item, 30MB total cache footprint to prevent memory leaks
+  private static readonly MAX_CACHE_ITEM_SIZE = 5 * 1024 * 1024;
+  private static readonly MAX_CACHE_TOTAL_BYTES = 30 * 1024 * 1024;
+
+  private pruneBufferCache(): void {
+    const now = Date.now();
+    let totalBytes = 0;
+    for (const [key, entry] of this.bufferCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.bufferCache.delete(key);
+      } else {
+        totalBytes += entry.buffer.length;
+      }
+    }
+    if (totalBytes > DriveStorageService.MAX_CACHE_TOTAL_BYTES) {
+      for (const [key, entry] of this.bufferCache.entries()) {
+        totalBytes -= entry.buffer.length;
+        this.bufferCache.delete(key);
+        if (totalBytes <= DriveStorageService.MAX_CACHE_TOTAL_BYTES) break;
+      }
+    }
+  }
+
+  private setBufferCache(key: string, buffer: Buffer): void {
+    if (buffer.length > DriveStorageService.MAX_CACHE_ITEM_SIZE) {
+      return; // Never retain large media files in heap
+    }
+    this.pruneBufferCache();
+    this.bufferCache.set(key, {
+      buffer,
+      expiresAt: Date.now() + 15 * 60 * 1000,
+    });
+  }
+
   private getClient(): drive_v3.Drive {
     if (!this.drive) {
       this.drive = getDriveClient();
@@ -325,12 +359,9 @@ export class DriveStorageService implements IStorageService {
       webViewLink = res.data.webViewLink || undefined;
     }
 
-    // Cache fileId and buffer for instant subsequent reads & streaming
+    // Cache fileId and buffer (if within size threshold) for instant subsequent reads
     this.fileIdCache.set(`${folderId}/${fileName}`, fileId);
-    this.bufferCache.set(params.objectName, {
-      buffer: params.buffer,
-      expiresAt: Date.now() + 15 * 60 * 1000, // 15 mins cache
-    });
+    this.setBufferCache(params.objectName, params.buffer);
 
     return {
       objectName: params.objectName,
@@ -342,8 +373,11 @@ export class DriveStorageService implements IStorageService {
   async download(objectName: string): Promise<Buffer> {
     // Return from in-memory cache if fresh
     const cached = this.bufferCache.get(objectName);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.buffer;
+    if (cached) {
+      if (cached.expiresAt > Date.now()) {
+        return cached.buffer;
+      }
+      this.bufferCache.delete(objectName);
     }
 
     const drive = this.getClient();
@@ -364,11 +398,8 @@ export class DriveStorageService implements IStorageService {
     );
     const buffer = Buffer.from(res.data as ArrayBuffer);
 
-    // Cache the downloaded buffer so video seeking/range requests are instant
-    this.bufferCache.set(objectName, {
-      buffer,
-      expiresAt: Date.now() + 15 * 60 * 1000,
-    });
+    // Cache the downloaded buffer only if within heap safety limit (<5MB)
+    this.setBufferCache(objectName, buffer);
 
     return buffer;
   }
@@ -380,13 +411,15 @@ export class DriveStorageService implements IStorageService {
 
     if (objectName.includes('/') || objectName.endsWith('.json') || objectName.endsWith('.txt')) {
       const { folderId, fileName } = await this.resolvePathAndFolder(objectName);
-      this.fileIdCache.delete(`${folderId}/${fileName}`);
       const foundId = await this.findFileInFolder(fileName, folderId);
+      this.fileIdCache.delete(`${folderId}/${fileName}`);
       if (!foundId) return; // already deleted
       fileId = foundId;
+      await drive.files.delete({ fileId });
+      this.fileIdCache.delete(`${folderId}/${fileName}`);
+    } else {
+      await drive.files.delete({ fileId });
     }
-
-    await drive.files.delete({ fileId });
   }
 
   private async resolveFolder(folderPath: string): Promise<string> {

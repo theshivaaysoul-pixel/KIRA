@@ -12,17 +12,21 @@
 const driveService = require('../services/driveService');
 const metadataService = require('../services/metadataService');
 
+const fs = require('fs');
+
 /**
  * POST /api/storage/upload
  * Upload a file through the backend to Google Drive.
  * Body: multipart/form-data with field "file" and optional "category"
  */
 async function uploadFile(req, res, next) {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No file provided.' });
-    }
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'No file provided.' });
+  }
 
+  const tempPath = req.file.path;
+
+  try {
     const userId = req.user.uid;
     const category = req.body.category || 'uploads';
     const { buffer, mimetype, originalname, size } = req.file;
@@ -30,6 +34,7 @@ async function uploadFile(req, res, next) {
     const { driveFileId, driveName } = await driveService.uploadFile({
       userId,
       category,
+      filePath: tempPath,
       buffer,
       mimetype,
       originalname,
@@ -59,6 +64,13 @@ async function uploadFile(req, res, next) {
     });
   } catch (err) {
     next(err);
+  } finally {
+    // Delete temp file from disk to prevent storage leaks
+    if (tempPath) {
+      fs.promises.unlink(tempPath).catch((unlinkErr) => {
+        console.warn('[Storage] Could not remove temp file:', tempPath, unlinkErr?.message);
+      });
+    }
   }
 }
 
