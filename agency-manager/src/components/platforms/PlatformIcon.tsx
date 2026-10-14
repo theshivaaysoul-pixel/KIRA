@@ -157,6 +157,8 @@ export function PlatformIcon({
         alt={displayName || 'Platform logo'}
         width={size}
         height={size}
+        loading="lazy"
+        decoding="async"
         className={`inline-block object-contain flex-shrink-0 select-none ${className}`}
         style={{ width: widthStyle, height: heightStyle, ...style }}
         onError={() => setHasError(true)}

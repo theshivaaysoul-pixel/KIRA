@@ -4,9 +4,7 @@
    Tailwind v4 with CSS custom properties for the theme.
 */
 
-/* ─── Google Fonts — must come before @import tailwindcss ───────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
+/* Inter is self-hosted via next/font in layout.tsx (exposed as --font-inter) */
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -109,7 +107,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
   background-color: rgb(var(--bg-base));
   color: rgb(var(--text-primary));
   font-size: 14px;

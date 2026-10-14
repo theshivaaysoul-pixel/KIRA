@@ -170,7 +170,7 @@ export function TaskDetailModal({
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-[rgb(var(--bg-surface))] border border-[rgb(var(--border))] flex items-center justify-center text-sm font-bold text-[rgb(var(--text-primary))] overflow-hidden shrink-0">
                     {task.assignedToMember.avatarUrl ? (
-                      <img src={task.assignedToMember.avatarUrl} alt={task.assignedToMember.name} className="w-full h-full object-cover" />
+                      <img src={task.assignedToMember.avatarUrl} alt={task.assignedToMember.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     ) : (
                       task.assignedToMember.name.slice(0, 2).toUpperCase()
                     )}
