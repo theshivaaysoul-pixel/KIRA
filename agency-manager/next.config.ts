@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
     '@google-cloud/storage',
     'googleapis',
   ],
+  // Skip the client-side "/" -> "/dashboard" hop; the dashboard layout handles unauthenticated users.
+  async redirects() {
+    return [{ source: '/', destination: '/dashboard', permanent: false }];
+  },
   async headers() {
     const cspHeader = [
       "default-src 'self'",

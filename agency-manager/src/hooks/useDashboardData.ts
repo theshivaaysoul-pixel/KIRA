@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { DashboardOverviewData } from '@/lib/types/domain';
 import type { ApiResponse } from '@/lib/types';
+import { readDashboardCache, writeDashboardCache } from '@/lib/dashboard-cache';
 
 export interface UseDashboardDataReturn {
   data: DashboardOverviewData | null;
@@ -49,6 +50,14 @@ export function useDashboardData(): UseDashboardDataReturn {
         return;
       }
 
+      const cached = readDashboardCache(user.uid);
+      if (cached) {
+        setData((prev) => prev ?? cached.data);
+        setLastUpdated((prev) => prev ?? new Date(cached.savedAt));
+        setLoading(false);
+        setIsRefreshing(true);
+      }
+
       try {
         const token = await getIdToken();
         if (!active || !token) {
@@ -76,6 +85,7 @@ export function useDashboardData(): UseDashboardDataReturn {
           setData(json.data);
           setError(null);
           setLastUpdated(new Date());
+          writeDashboardCache(user.uid, json.data);
         }
       } catch (err) {
         if (!active) return;
@@ -102,7 +112,7 @@ export function useDashboardData(): UseDashboardDataReturn {
 
   return {
     data,
-    loading: authLoading || loading,
+    loading: (authLoading || loading) && !data,
     isRefreshing,
     error,
     lastUpdated,

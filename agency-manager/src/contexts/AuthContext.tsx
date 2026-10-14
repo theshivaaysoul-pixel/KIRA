@@ -26,6 +26,7 @@ import {
 } from 'firebase/auth';
 import { getClientAuth, getGoogleProvider } from '@/lib/auth/firebase-client';
 import type { AuthState, User } from '@/lib/types';
+import { clearDashboardCache } from '@/lib/dashboard-cache';
 
 interface AuthContextValue extends AuthState {
   signInWithGoogle: () => Promise<User>;
@@ -143,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await recordAuthActivity('LOGOUT', token);
     }
     await firebaseSignOut(auth);
+    clearDashboardCache();
     setState({ user: null, loading: false, error: null });
   }, []);
 
