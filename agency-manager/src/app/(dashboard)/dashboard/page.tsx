@@ -16,7 +16,6 @@ import { AttentionBanner } from '@/components/dashboard/AttentionBanner';
 import { KpiCardsSection } from '@/components/dashboard/KpiCardsSection';
 import { UpcomingScheduleSection } from '@/components/dashboard/UpcomingScheduleSection';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
-import { ContentFeed } from '@/components/dashboard/content-feed';
 import { ScrollReveal } from '@/components/motion';
 
 export default function DashboardPage() {
@@ -118,11 +117,6 @@ export default function DashboardPage() {
           />
         </ScrollReveal>
       )}
-
-      {/* 7. Content Feed Add-On */}
-      <ScrollReveal delay={120} threshold={0}>
-        <ContentFeed />
-      </ScrollReveal>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 // src/components/dashboard/content-feed/ContentFeed.tsx
-// Dashboard Content Feed Add-On:
-// - Appended to the bottom of the KIRA Dashboard
+// Content Feed:
+// - Rendered on its own /feed page (linked from the sidebar)
 // - Fetches strictly real agency content via /api/content?view=feed
 // - Coordinated video playback manager ensuring only one active video plays at a time
 // - Native infinite scrolling / load more pagination
