@@ -5,6 +5,7 @@
 import type { ReactNode } from 'react';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { PermissionProvider } from '@/contexts/PermissionContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { MotionProvider } from '@/components/motion';
 
@@ -14,13 +15,15 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <AuthProvider>
-        <SidebarProvider>
-          <ToastProvider>
-            <MotionProvider>
-              {children}
-            </MotionProvider>
-          </ToastProvider>
-        </SidebarProvider>
+        <PermissionProvider>
+          <SidebarProvider>
+            <ToastProvider>
+              <MotionProvider>
+                {children}
+              </MotionProvider>
+            </ToastProvider>
+          </SidebarProvider>
+        </PermissionProvider>
       </AuthProvider>
     </ThemeProvider>
   );
