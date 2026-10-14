@@ -14,6 +14,7 @@ import { getRepositories } from '@/lib/repositories';
 import type {
   DailyContentTarget,
   DailyContentTargetWithRelations,
+  DailyTargetDateItem,
   PlatformTargetDetail,
   ContentPlatformTarget,
   ContentPlatformTargetWithPlatform,
@@ -158,6 +159,87 @@ export class DailyTargetService {
     const overallPercentage =
       overallTarget > 0 ? Math.min(100, Math.round((overallCompleted / overallTarget) * 100)) : 0;
 
+    // Fetch all daily targets to compute all past overdue and upcoming targets
+    const allRecords = await this.repos.dailyTargets.findAll();
+    const todayStr = await this.getAgencyDateString();
+
+    const allOverdueTargets: DailyTargetDateItem[] = [];
+    const allUpcomingTargets: DailyTargetDateItem[] = [];
+
+    const getDaysDiff = (baseDateStr: string, targetDateStr: string): number => {
+      const [y1, m1, day1] = baseDateStr.split('-').map(Number);
+      const [y2, m2, day2] = targetDateStr.split('-').map(Number);
+      const t1 = new Date(y1, m1 - 1, day1).getTime();
+      const t2 = new Date(y2, m2 - 1, day2).getTime();
+      return Math.round((t2 - t1) / (1000 * 60 * 60 * 24));
+    };
+
+    const recordsMap = new Map<string, DailyContentTarget>();
+    for (const rec of allRecords) {
+      recordsMap.set(rec.date, rec);
+    }
+    if (targetRecord) {
+      recordsMap.set(targetRecord.date, targetRecord);
+    }
+
+    for (const record of recordsMap.values()) {
+      if (!record.platformTargets || record.platformTargets.length === 0) continue;
+
+      const daysDiff = getDaysDiff(todayStr, record.date);
+
+      if (record.date < todayStr) {
+        // Past date: collect overdue platform targets (targetCount > 0 and completedCount < targetCount)
+        for (const pt of record.platformTargets) {
+          if (pt.targetCount > 0 && pt.completedCount < pt.targetCount) {
+            const platform = platformMap.get(pt.platformId) || allPlatforms.find((p) => p.id === pt.platformId);
+            if (!platform) continue;
+
+            const remaining = Math.max(pt.targetCount - pt.completedCount, 0);
+            const percentage = Math.min(100, Math.round((pt.completedCount / pt.targetCount) * 100));
+
+            allOverdueTargets.push({
+              date: record.date,
+              platform,
+              targetCount: pt.targetCount,
+              completedCount: pt.completedCount,
+              remaining,
+              percentage,
+              status: 'OVERDUE',
+              daysDifference: daysDiff,
+            });
+          }
+        }
+      } else if (record.date > todayStr) {
+        // Upcoming date: collect all configured platform targets (targetCount > 0)
+        for (const pt of record.platformTargets) {
+          if (pt.targetCount > 0) {
+            const platform = platformMap.get(pt.platformId) || allPlatforms.find((p) => p.id === pt.platformId);
+            if (!platform) continue;
+
+            const remaining = Math.max(pt.targetCount - pt.completedCount, 0);
+            const percentage = Math.min(100, Math.round((pt.completedCount / pt.targetCount) * 100));
+
+            allUpcomingTargets.push({
+              date: record.date,
+              platform,
+              targetCount: pt.targetCount,
+              completedCount: pt.completedCount,
+              remaining,
+              percentage,
+              status: 'UPCOMING',
+              daysDifference: daysDiff,
+            });
+          }
+        }
+      }
+    }
+
+    // Sort overdue descending by date (most recent past date first: yesterday, 2 days ago...)
+    allOverdueTargets.sort((a, b) => b.date.localeCompare(a.date));
+
+    // Sort upcoming ascending by date (nearest upcoming date first: tomorrow, +2d...)
+    allUpcomingTargets.sort((a, b) => a.date.localeCompare(b.date));
+
     return {
       id: targetRecord?.id || ('' as DailyContentTargetId),
       date: dateStr,
@@ -170,6 +252,10 @@ export class DailyTargetService {
       overallCompleted,
       overallRemaining,
       overallPercentage,
+      allOverdueTargets,
+      allUpcomingTargets,
+      allOverdueCount: allOverdueTargets.length,
+      allUpcomingCount: allUpcomingTargets.length,
     };
   }
 

@@ -11,7 +11,7 @@
 // - TargetConfigModal for multi-platform configuration.
 // - Immediate UI updates with server-side validation and persistence.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -29,14 +29,73 @@ import {
   Layers,
   AlertTriangle,
   Copy,
+  ArrowRight,
 } from 'lucide-react';
 import { PlatformIcon } from '@/components/platforms/PlatformIcon';
 import { TargetConfigModal } from './TargetConfigModal';
 import { MagneticButton } from '@/components/motion';
 import { useAuth } from '@/contexts/AuthContext';
-import type { DailyContentTargetWithRelations, PlatformTargetDetail } from '@/lib/types/domain';
+import type {
+  DailyContentTargetWithRelations,
+  PlatformTargetDetail,
+  DailyTargetDateItem,
+} from '@/lib/types/domain';
 
 export type TargetStatusFilter = 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'UPCOMING';
+
+function getRelativeDateLabel(dateStr: string, todayStr: string): {
+  formattedFull: string;
+  formattedShort: string;
+  relativeText: string;
+  isPast: boolean;
+  isFuture: boolean;
+  diffDays: number;
+  badgeClass: string;
+} {
+  const [y1, m1, d1] = todayStr.split('-').map(Number);
+  const [y2, m2, d2] = dateStr.split('-').map(Number);
+  const t1 = new Date(y1, m1 - 1, d1).getTime();
+  const t2 = new Date(y2, m2 - 1, d2).getTime();
+  const diffDays = Math.round((t2 - t1) / (1000 * 60 * 60 * 24));
+
+  const d = new Date(dateStr + 'T00:00:00');
+  const formattedFull = d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const formattedShort = d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+
+  let relativeText = 'Today';
+  let badgeClass = 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30';
+  if (diffDays === -1) {
+    relativeText = 'Yesterday';
+    badgeClass = 'bg-rose-500/10 text-rose-500 border-rose-500/30';
+  } else if (diffDays < -1) {
+    relativeText = `${Math.abs(diffDays)}d ago`;
+    badgeClass = 'bg-rose-500/10 text-rose-500 border-rose-500/30';
+  } else if (diffDays === 1) {
+    relativeText = 'Tomorrow';
+    badgeClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
+  } else if (diffDays > 1) {
+    relativeText = `+${diffDays}d upcoming`;
+    badgeClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
+  }
+
+  return {
+    formattedFull,
+    formattedShort,
+    relativeText,
+    isPast: diffDays < 0,
+    isFuture: diffDays > 0,
+    diffDays,
+    badgeClass,
+  };
+}
 
 /**
  * Classifies a platform target relative to the selected date and agency current day.
@@ -139,20 +198,20 @@ export function DailyTaskManager() {
     setSelectedDate(formatToLocalDateStr());
   };
 
-  // Immediate stepper adjustment on a platform card
-  const handleCardTargetStep = async (platformId: string, currentTarget: number, delta: number) => {
+  // Stepper adjustment on a platform card (supports selected date or any past/upcoming date)
+  const handleCardTargetStep = async (
+    platformId: string,
+    currentTarget: number,
+    delta: number,
+    targetDateStr: string = selectedDate
+  ) => {
     if (!data || updatingPlatformId) return;
 
     const newTarget = Math.max(0, currentTarget + delta);
     if (newTarget === currentTarget) return;
 
-    setUpdatingPlatformId(platformId);
-
-    // Optimistically update local state
-    const updatedPlatformTargets = data.platforms.map((p) => ({
-      platformId: p.platform.id,
-      targetCount: p.platform.id === platformId ? newTarget : p.targetCount,
-    }));
+    const isCurrentDate = targetDateStr === selectedDate;
+    setUpdatingPlatformId(`${targetDateStr}-${platformId}`);
 
     try {
       const token = await getIdToken();
@@ -163,21 +222,55 @@ export function DailyTaskManager() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch('/api/tasks/daily', {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          date: selectedDate,
-          platformTargets: updatedPlatformTargets,
-        }),
-      });
+      if (isCurrentDate) {
+        // Optimistically update local state for current date
+        const updatedPlatformTargets = data.platforms.map((p) => ({
+          platformId: p.platform.id,
+          targetCount: p.platform.id === platformId ? newTarget : p.targetCount,
+        }));
 
-      const json = await res.json();
-      if (json.success && json.data) {
-        setData(json.data);
+        const res = await fetch('/api/tasks/daily', {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            date: selectedDate,
+            platformTargets: updatedPlatformTargets,
+          }),
+        });
+
+        const json = await res.json();
+        if (json.success && json.data) {
+          setData(json.data);
+        } else {
+          setError(json.error?.message || 'Failed to update target count.');
+          await fetchDailyTarget(selectedDate, true);
+        }
       } else {
-        setError(json.error?.message || 'Failed to update target count.');
-        // Revert on error
+        // For another date (e.g. overdue past date or upcoming future date)
+        const getRes = await fetch(`/api/tasks/daily?date=${targetDateStr}`, { headers });
+        const getJson = await getRes.json();
+        if (getJson.success && getJson.data) {
+          const existingPlatforms: PlatformTargetDetail[] = getJson.data.platforms;
+          const updatedPlatformTargets = existingPlatforms
+            .filter((p) => p.targetCount > 0 || p.platform.id === platformId)
+            .map((p) => ({
+              platformId: p.platform.id,
+              targetCount: p.platform.id === platformId ? newTarget : p.targetCount,
+            }));
+
+          const res = await fetch('/api/tasks/daily', {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+              date: targetDateStr,
+              platformTargets: updatedPlatformTargets,
+            }),
+          });
+          const json = await res.json();
+          if (!json.success) {
+            setError(json.error?.message || 'Failed to update target count.');
+          }
+        }
         await fetchDailyTarget(selectedDate, true);
       }
     } catch {
@@ -186,6 +279,11 @@ export function DailyTaskManager() {
     } finally {
       setUpdatingPlatformId(null);
     }
+  };
+
+  const handleJumpToDate = (targetDate: string) => {
+    setSelectedDate(targetDate);
+    setStatusFilter('ALL');
   };
 
   const todayStr = formatToLocalDateStr();
@@ -285,13 +383,55 @@ export function DailyTaskManager() {
     (pt) => getPlatformTargetCategory(pt, selectedDate, todayStr) === 'COMPLETED'
   ).length;
 
-  const overdueCount = targetedPlatforms.filter(
-    (pt) => getPlatformTargetCategory(pt, selectedDate, todayStr) === 'OVERDUE'
-  ).length;
+  // All overdue tasks across all past calendar dates
+  const allOverdueTargets = useMemo(() => data?.allOverdueTargets || [], [data?.allOverdueTargets]);
 
-  const upcomingCount = targetedPlatforms.filter(
-    (pt) => getPlatformTargetCategory(pt, selectedDate, todayStr) === 'UPCOMING'
-  ).length;
+  // All upcoming tasks across all upcoming calendar dates
+  const allUpcomingTargets = useMemo(() => data?.allUpcomingTargets || [], [data?.allUpcomingTargets]);
+
+  // Overdue count shows all past overdue tasks
+  const overdueCount = allOverdueTargets.length;
+
+  // Upcoming count shows all upcoming tasks
+  const upcomingCount = allUpcomingTargets.length;
+
+  const overdueByDate = useMemo(() => {
+    const dateMap = new Map<string, DailyTargetDateItem[]>();
+    for (const item of allOverdueTargets) {
+      if (!dateMap.has(item.date)) {
+        dateMap.set(item.date, []);
+      }
+      dateMap.get(item.date)!.push(item);
+    }
+    const sortedDates = Array.from(dateMap.keys()).sort((a, b) => b.localeCompare(a));
+    return sortedDates.map((date) => ({
+      date,
+      items: dateMap.get(date)!,
+    }));
+  }, [allOverdueTargets]);
+
+  const upcomingByDate = useMemo(() => {
+    const dateMap = new Map<string, DailyTargetDateItem[]>();
+    for (const item of allUpcomingTargets) {
+      if (!dateMap.has(item.date)) {
+        dateMap.set(item.date, []);
+      }
+      dateMap.get(item.date)!.push(item);
+    }
+    const sortedDates = Array.from(dateMap.keys()).sort((a, b) => a.localeCompare(b));
+    return sortedDates.map((date) => ({
+      date,
+      items: dateMap.get(date)!,
+    }));
+  }, [allUpcomingTargets]);
+
+  const totalOverdueRemaining = useMemo(() => {
+    return allOverdueTargets.reduce((sum, item) => sum + item.remaining, 0);
+  }, [allOverdueTargets]);
+
+  const totalUpcomingPlanned = useMemo(() => {
+    return allUpcomingTargets.reduce((sum, item) => sum + item.targetCount, 0);
+  }, [allUpcomingTargets]);
 
   const filteredPlatforms = targetedPlatforms.filter((pt) => {
     if (statusFilter === 'ALL') return true;
@@ -470,8 +610,16 @@ export function DailyTaskManager() {
           </div>
 
           <span className="text-xs text-[rgb(var(--muted-foreground))] hidden md:inline shrink-0 font-medium">
-            {targetedPlatforms.length > 0
-              ? `Showing ${filteredPlatforms.length} of ${targetedPlatforms.length} targets`
+            {statusFilter === 'OVERDUE'
+              ? `${allOverdueTargets.length} past overdue target${allOverdueTargets.length === 1 ? '' : 's'}${
+                  overdueByDate.length > 0 ? ` across ${overdueByDate.length} date${overdueByDate.length === 1 ? '' : 's'}` : ''
+                }`
+              : statusFilter === 'UPCOMING'
+              ? `${allUpcomingTargets.length} upcoming target${allUpcomingTargets.length === 1 ? '' : 's'}${
+                  upcomingByDate.length > 0 ? ` across ${upcomingByDate.length} date${upcomingByDate.length === 1 ? '' : 's'}` : ''
+                }`
+              : targetedPlatforms.length > 0
+              ? `Showing ${filteredPlatforms.length} of ${targetedPlatforms.length} targets for ${formattedDateShort}`
               : '0 targets configured'}
           </span>
         </div>
@@ -491,7 +639,498 @@ export function DailyTaskManager() {
           <Loader2 size={32} className="animate-spin text-[rgb(var(--primary))]" />
           <p className="text-sm text-[rgb(var(--muted-foreground))]">Loading daily content targets...</p>
         </div>
+      ) : statusFilter === 'OVERDUE' ? (
+        /* ─── ALL PAST OVERDUE TASKS VIEW ─────────────────────────────────────── */
+        <div className="flex flex-col gap-6 sm:gap-7 min-w-0 w-full animate-in fade-in duration-200">
+          {/* Overdue Summary Card */}
+          <div className="card p-4 sm:p-6 rounded-2xl border border-rose-500/20 bg-gradient-to-br from-[rgb(var(--card))] via-[rgb(var(--card))] to-rose-500/5 shadow-sm space-y-4 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0 border border-rose-500/20">
+                    <AlertTriangle size={17} />
+                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-[rgb(var(--foreground))]">
+                    All Past Overdue Tasks
+                  </h2>
+                </div>
+                <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1">
+                  Showing all uncompleted platform deliverables from past calendar dates.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 sm:gap-4 flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-[rgb(var(--border))]/40">
+                <div className="px-3 py-1.5 rounded-xl bg-[rgb(var(--muted))]/70 border border-[rgb(var(--border))]">
+                  <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">Overdue Targets</div>
+                  <div className="text-sm sm:text-base font-bold font-mono text-rose-500">{allOverdueTargets.length}</div>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-[rgb(var(--muted))]/70 border border-[rgb(var(--border))]">
+                  <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">Past Dates</div>
+                  <div className="text-sm sm:text-base font-bold font-mono text-[rgb(var(--foreground))]">{overdueByDate.length}</div>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-[rgb(var(--muted))]/70 border border-[rgb(var(--border))]">
+                  <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">Items Remaining</div>
+                  <div className="text-sm sm:text-base font-bold font-mono text-rose-500">{totalOverdueRemaining}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Overdue Groups List or Empty State */}
+          {allOverdueTargets.length === 0 ? (
+            <div className="card p-8 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--card))]/40 text-center space-y-3 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto border border-emerald-500/20">
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[rgb(var(--foreground))]">
+                  No Past Overdue Tasks
+                </h3>
+                <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1 max-w-md mx-auto">
+                  All platform content targets from past calendar dates have been successfully completed or resolved! 🎉
+                </p>
+              </div>
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleJumpToToday();
+                    setStatusFilter('ALL');
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[rgb(var(--primary))] text-white hover:opacity-90 transition shadow-sm cursor-pointer"
+                >
+                  View Today&apos;s Targets
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-7">
+              {overdueByDate.map((group) => {
+                const dateInfo = getRelativeDateLabel(group.date, todayStr);
+                const isSelectedGroup = group.date === selectedDate;
+                return (
+                  <div key={group.date} className="space-y-3.5">
+                    {/* Date Section Header */}
+                    <div className="flex items-center justify-between gap-3 border-b border-[rgb(var(--border))]/80 pb-2.5">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <Calendar size={16} className="text-rose-500 shrink-0" />
+                        <span className="text-sm font-bold text-[rgb(var(--foreground))]">
+                          {dateInfo.formattedFull}
+                        </span>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold border ${dateInfo.badgeClass}`}>
+                          {dateInfo.relativeText}
+                        </span>
+                        {isSelectedGroup && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))] font-semibold border border-[rgb(var(--primary))]/20">
+                            Active Calendar Date
+                          </span>
+                        )}
+                        <span className="text-xs text-[rgb(var(--muted-foreground))] font-medium">
+                          ({group.items.length} overdue {group.items.length === 1 ? 'target' : 'targets'})
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleJumpToDate(group.date)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[rgb(var(--border))] hover:bg-[rgb(var(--muted))] text-xs font-semibold text-[rgb(var(--foreground))] hover:border-[rgb(var(--primary))]/40 transition shadow-xs cursor-pointer shrink-0"
+                        title={`Manage all platform targets for ${dateInfo.formattedShort}`}
+                      >
+                        <span>Manage Day</span>
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+
+                    {/* Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 min-w-0 w-full">
+                      {group.items.map((item) => {
+                        const isUpdating = updatingPlatformId === `${item.date}-${item.platform.id}`;
+                        return (
+                          <div
+                            key={`${item.date}-${item.platform.id}`}
+                            className="card group/pcard p-5 rounded-2xl border border-rose-500/30 bg-rose-500/5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between gap-4"
+                          >
+                            {/* Card Header: Platform info, status badge, date badge */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-xl bg-[rgb(var(--muted))] flex items-center justify-center shrink-0 border border-[rgb(var(--border))] transition-transform duration-200 group-hover/pcard:scale-110">
+                                  <PlatformIcon
+                                    icon={item.platform.icon}
+                                    name={item.platform.name}
+                                    size={20}
+                                    className="shrink-0"
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <h3 className="text-sm font-bold text-[rgb(var(--foreground))] truncate">
+                                    {item.platform.name}
+                                  </h3>
+                                  <span className="text-[11px] text-[rgb(var(--muted-foreground))]">
+                                    {item.platform.slug}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end gap-1 shrink-0">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-500 border border-rose-500/30">
+                                  <AlertTriangle size={12} />
+                                  Overdue
+                                </span>
+                                <span className="text-[10px] text-rose-400 font-mono font-medium">
+                                  {dateInfo.relativeText}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Card Metrics Table: Target, Completed, Remaining */}
+                            <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-[rgb(var(--muted))]/50 border border-[rgb(var(--border))]/50 text-center">
+                              <div>
+                                <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">
+                                  Target
+                                </div>
+                                <div className="text-base font-extrabold font-mono text-[rgb(var(--foreground))] mt-0.5">
+                                  {item.targetCount}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase font-bold text-emerald-500">
+                                  Completed
+                                </div>
+                                <div className="text-base font-extrabold font-mono text-emerald-500 mt-0.5">
+                                  {item.completedCount}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase font-bold text-rose-500">
+                                  Remaining
+                                </div>
+                                <div className="text-base font-extrabold font-mono text-rose-500 mt-0.5">
+                                  {item.remaining}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-[rgb(var(--muted-foreground))]">Progress</span>
+                                <span className="font-mono font-bold text-[rgb(var(--foreground))]">
+                                  {item.percentage}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-[rgb(var(--muted))] rounded-full h-2 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full smooth-progress bg-rose-500"
+                                  style={{ width: `${item.percentage}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Stepper Quick-Adjustment Control */}
+                            <div className="flex items-center justify-between pt-2 border-t border-[rgb(var(--border))]">
+                              <button
+                                type="button"
+                                onClick={() => handleJumpToDate(item.date)}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[rgb(var(--primary))] hover:underline cursor-pointer"
+                              >
+                                <span>Open Day</span>
+                                <ArrowRight size={11} />
+                              </button>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCardTargetStep(item.platform.id, item.targetCount, -1, item.date)}
+                                  disabled={isUpdating || item.targetCount <= 0}
+                                  className="w-7 h-7 rounded-lg bg-[rgb(var(--muted))] hover:bg-[rgb(var(--border))] text-[rgb(var(--foreground))] flex items-center justify-center transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                  aria-label={`Decrease target for ${item.platform.name}`}
+                                >
+                                  <Minus size={13} />
+                                </button>
+                                <span className="w-8 text-center text-xs font-bold font-mono text-[rgb(var(--foreground))]">
+                                  {isUpdating ? <Loader2 size={12} className="animate-spin mx-auto" /> : item.targetCount}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCardTargetStep(item.platform.id, item.targetCount, 1, item.date)}
+                                  disabled={isUpdating}
+                                  className="w-7 h-7 rounded-lg bg-[rgb(var(--muted))] hover:bg-[rgb(var(--border))] text-[rgb(var(--foreground))] flex items-center justify-center transition-all active:scale-90 disabled:opacity-40 cursor-pointer"
+                                  aria-label={`Increase target for ${item.platform.name}`}
+                                >
+                                  <Plus size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : statusFilter === 'UPCOMING' ? (
+        /* ─── ALL UPCOMING TASKS VIEW ─────────────────────────────────────────── */
+        <div className="flex flex-col gap-6 sm:gap-7 min-w-0 w-full animate-in fade-in duration-200">
+          {/* Upcoming Summary Card */}
+          <div className="card p-4 sm:p-6 rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-[rgb(var(--card))] via-[rgb(var(--card))] to-indigo-500/5 shadow-sm space-y-4 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/20">
+                    <Calendar size={17} />
+                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-[rgb(var(--foreground))]">
+                    All Upcoming Tasks
+                  </h2>
+                </div>
+                <p className="text-xs text-[rgb(var(--muted-foreground))] mt-1">
+                  Showing all scheduled platform content deliverables across future calendar dates.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 sm:gap-4 flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-[rgb(var(--border))]/40">
+                <div className="px-3 py-1.5 rounded-xl bg-[rgb(var(--muted))]/70 border border-[rgb(var(--border))]">
+                  <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">Upcoming Targets</div>
+                  <div className="text-sm sm:text-base font-bold font-mono text-indigo-400">{allUpcomingTargets.length}</div>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-[rgb(var(--muted))]/70 border border-[rgb(var(--border))]">
+                  <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">Upcoming Dates</div>
+                  <div className="text-sm sm:text-base font-bold font-mono text-[rgb(var(--foreground))]">{upcomingByDate.length}</div>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-[rgb(var(--muted))]/70 border border-[rgb(var(--border))]">
+                  <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">Total Planned</div>
+                  <div className="text-sm sm:text-base font-bold font-mono text-indigo-400">{totalUpcomingPlanned}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfigModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-500 transition shadow-xs cursor-pointer shrink-0"
+                >
+                  Configure
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Upcoming Groups List or Empty State */}
+          {allUpcomingTargets.length === 0 ? (
+            <div className="card p-8 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--card))]/40 text-center space-y-4 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/20">
+                <Calendar size={24} />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h3 className="text-base font-bold text-[rgb(var(--foreground))]">
+                  No Upcoming Tasks Configured
+                </h3>
+                <p className="text-xs text-[rgb(var(--muted-foreground))]">
+                  Plan ahead by setting platform-specific deliverables for tomorrow or future dates to keep your content pipeline running smoothly.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setConfigModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-500 transition shadow-sm cursor-pointer"
+                >
+                  <Sliders size={15} />
+                  <span>Configure Upcoming Targets</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleJumpToToday();
+                    setStatusFilter('ALL');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border border-[rgb(var(--border))] hover:bg-[rgb(var(--muted))] text-[rgb(var(--foreground))] transition cursor-pointer"
+                >
+                  <span>Back to Today</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-7">
+              {upcomingByDate.map((group) => {
+                const dateInfo = getRelativeDateLabel(group.date, todayStr);
+                const isSelectedGroup = group.date === selectedDate;
+                return (
+                  <div key={group.date} className="space-y-3.5">
+                    {/* Date Section Header */}
+                    <div className="flex items-center justify-between gap-3 border-b border-[rgb(var(--border))]/80 pb-2.5">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <Calendar size={16} className="text-indigo-400 shrink-0" />
+                        <span className="text-sm font-bold text-[rgb(var(--foreground))]">
+                          {dateInfo.formattedFull}
+                        </span>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold border ${dateInfo.badgeClass}`}>
+                          {dateInfo.relativeText}
+                        </span>
+                        {isSelectedGroup && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))] font-semibold border border-[rgb(var(--primary))]/20">
+                            Active Calendar Date
+                          </span>
+                        )}
+                        <span className="text-xs text-[rgb(var(--muted-foreground))] font-medium">
+                          ({group.items.length} upcoming {group.items.length === 1 ? 'target' : 'targets'})
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleJumpToDate(group.date)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[rgb(var(--border))] hover:bg-[rgb(var(--muted))] text-xs font-semibold text-[rgb(var(--foreground))] hover:border-indigo-400/40 transition shadow-xs cursor-pointer shrink-0"
+                        title={`Manage all platform targets for ${dateInfo.formattedShort}`}
+                      >
+                        <span>Manage Day</span>
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+
+                    {/* Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 min-w-0 w-full">
+                      {group.items.map((item) => {
+                        const isUpdating = updatingPlatformId === `${item.date}-${item.platform.id}`;
+                        const isComplete = item.completedCount >= item.targetCount;
+                        return (
+                          <div
+                            key={`${item.date}-${item.platform.id}`}
+                            className={`card group/pcard p-5 rounded-2xl border shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between gap-4 ${
+                              isComplete
+                                ? 'border-emerald-500/30 bg-emerald-500/5'
+                                : 'border-indigo-500/30 bg-indigo-500/5'
+                            }`}
+                          >
+                            {/* Card Header: Platform info, status badge, date badge */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-xl bg-[rgb(var(--muted))] flex items-center justify-center shrink-0 border border-[rgb(var(--border))] transition-transform duration-200 group-hover/pcard:scale-110">
+                                  <PlatformIcon
+                                    icon={item.platform.icon}
+                                    name={item.platform.name}
+                                    size={20}
+                                    className="shrink-0"
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <h3 className="text-sm font-bold text-[rgb(var(--foreground))] truncate">
+                                    {item.platform.name}
+                                  </h3>
+                                  <span className="text-[11px] text-[rgb(var(--muted-foreground))]">
+                                    {item.platform.slug}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end gap-1 shrink-0">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                                  isComplete
+                                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                                    : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
+                                }`}>
+                                  {isComplete ? <CheckCircle2 size={12} /> : <Calendar size={12} />}
+                                  {isComplete ? 'Complete' : 'Upcoming'}
+                                </span>
+                                <span className="text-[10px] text-indigo-400 font-mono font-medium">
+                                  {dateInfo.relativeText}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Card Metrics Table: Target, Completed, Remaining */}
+                            <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-[rgb(var(--muted))]/50 border border-[rgb(var(--border))]/50 text-center">
+                              <div>
+                                <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">
+                                  Target
+                                </div>
+                                <div className="text-base font-extrabold font-mono text-[rgb(var(--foreground))] mt-0.5">
+                                  {item.targetCount}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase font-bold text-emerald-500">
+                                  Completed
+                                </div>
+                                <div className="text-base font-extrabold font-mono text-emerald-500 mt-0.5">
+                                  {item.completedCount}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase font-bold text-[rgb(var(--muted-foreground))]">
+                                  Remaining
+                                </div>
+                                <div className="text-base font-extrabold font-mono text-[rgb(var(--foreground))] mt-0.5">
+                                  {item.remaining}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-[rgb(var(--muted-foreground))]">Progress</span>
+                                <span className="font-mono font-bold text-[rgb(var(--foreground))]">
+                                  {item.percentage}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-[rgb(var(--muted))] rounded-full h-2 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full smooth-progress ${
+                                    isComplete ? 'bg-emerald-500' : 'bg-indigo-500'
+                                  }`}
+                                  style={{ width: `${item.percentage}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Stepper Quick-Adjustment Control */}
+                            <div className="flex items-center justify-between pt-2 border-t border-[rgb(var(--border))]">
+                              <button
+                                type="button"
+                                onClick={() => handleJumpToDate(item.date)}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[rgb(var(--primary))] hover:underline cursor-pointer"
+                              >
+                                <span>Open Day</span>
+                                <ArrowRight size={11} />
+                              </button>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCardTargetStep(item.platform.id, item.targetCount, -1, item.date)}
+                                  disabled={isUpdating || item.targetCount <= 0}
+                                  className="w-7 h-7 rounded-lg bg-[rgb(var(--muted))] hover:bg-[rgb(var(--border))] text-[rgb(var(--foreground))] flex items-center justify-center transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                  aria-label={`Decrease target for ${item.platform.name}`}
+                                >
+                                  <Minus size={13} />
+                                </button>
+                                <span className="w-8 text-center text-xs font-bold font-mono text-[rgb(var(--foreground))]">
+                                  {isUpdating ? <Loader2 size={12} className="animate-spin mx-auto" /> : item.targetCount}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCardTargetStep(item.platform.id, item.targetCount, 1, item.date)}
+                                  disabled={isUpdating}
+                                  className="w-7 h-7 rounded-lg bg-[rgb(var(--muted))] hover:bg-[rgb(var(--border))] text-[rgb(var(--foreground))] flex items-center justify-center transition-all active:scale-90 disabled:opacity-40 cursor-pointer"
+                                  aria-label={`Increase target for ${item.platform.name}`}
+                                >
+                                  <Plus size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       ) : (
+        /* ─── CURRENT DATE TARGETS VIEW (ALL / IN_PROGRESS / COMPLETED) ────────── */
         <>
           {/* ─── Other Available Platforms (Placed before Today's Overall Progress) ─ */}
           {untargetedPlatforms.length > 0 && (
@@ -511,7 +1150,7 @@ export function DailyTaskManager() {
                     type="button"
                     onClick={() => handleCardTargetStep(pt.platform.id, 0, 1)}
                     title={`Add ${pt.platform.name} with target 1`}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--card))] hover:border-[rgb(var(--primary))] text-xs font-medium text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-all group shadow-sm"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--card))] hover:border-[rgb(var(--primary))] text-xs font-medium text-[rgb(var(--muted-foreground))] hover:text-[rgb(var(--foreground))] transition-all group shadow-sm cursor-pointer"
                   >
                     <PlatformIcon icon={pt.platform.icon} name={pt.platform.name} size={15} />
                     <span>{pt.platform.name}</span>
@@ -599,7 +1238,7 @@ export function DailyTaskManager() {
                 <button
                   type="button"
                   onClick={() => setConfigModalOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-[rgb(var(--primary))] text-white hover:opacity-90 transition-opacity shadow-sm"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-[rgb(var(--primary))] text-white hover:opacity-90 transition-opacity shadow-sm cursor-pointer"
                 >
                   <Sliders size={16} />
                   <span>Configure Targets for {isToday ? 'Today' : isTomorrow ? 'Tomorrow' : formattedDate}</span>
@@ -608,7 +1247,7 @@ export function DailyTaskManager() {
                   <button
                     type="button"
                     onClick={handleCopyTodayTargets}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-[rgb(var(--border))] bg-[rgb(var(--card))] hover:bg-[rgb(var(--muted))] text-[rgb(var(--foreground))] transition-colors shadow-sm"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-[rgb(var(--border))] bg-[rgb(var(--card))] hover:bg-[rgb(var(--muted))] text-[rgb(var(--foreground))] transition-colors shadow-sm cursor-pointer"
                   >
                     <Copy size={15} className="text-indigo-400" />
                     <span>Copy Today&apos;s Targets</span>
@@ -641,12 +1280,8 @@ export function DailyTaskManager() {
               {filteredPlatforms.length === 0 ? (
                 <div className="card p-8 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--card))]/40 text-center space-y-3 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-[rgb(var(--muted))] flex items-center justify-center mx-auto text-[rgb(var(--muted-foreground))]">
-                    {statusFilter === 'OVERDUE' ? (
-                      <AlertTriangle size={20} className="text-rose-500" />
-                    ) : statusFilter === 'COMPLETED' ? (
+                    {statusFilter === 'COMPLETED' ? (
                       <CheckCircle2 size={20} className="text-emerald-500" />
-                    ) : statusFilter === 'UPCOMING' ? (
-                      <Calendar size={20} className="text-indigo-400" />
                     ) : (
                       <Clock size={20} className="text-amber-500" />
                     )}
@@ -663,28 +1298,10 @@ export function DailyTaskManager() {
                     <button
                       type="button"
                       onClick={() => setStatusFilter('ALL')}
-                      className="px-3.5 py-1.5 rounded-xl border border-[rgb(var(--border))] hover:bg-[rgb(var(--muted))] text-xs font-semibold text-[rgb(var(--foreground))] transition-colors"
+                      className="px-3.5 py-1.5 rounded-xl border border-[rgb(var(--border))] hover:bg-[rgb(var(--muted))] text-xs font-semibold text-[rgb(var(--foreground))] transition-colors cursor-pointer"
                     >
                       Show All Targets ({targetedPlatforms.length})
                     </button>
-                    {statusFilter === 'OVERDUE' && isToday && (
-                      <button
-                        type="button"
-                        onClick={() => handleShiftDate(-1)}
-                        className="px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold border border-rose-500/20 transition-colors"
-                      >
-                        View Yesterday&apos;s Targets
-                      </button>
-                    )}
-                    {statusFilter === 'UPCOMING' && isToday && (
-                      <button
-                        type="button"
-                        onClick={() => handleShiftDate(1)}
-                        className="px-3.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-semibold border border-indigo-500/20 transition-colors"
-                      >
-                        View Tomorrow&apos;s Targets
-                      </button>
-                    )}
                   </div>
                 </div>
               ) : (
@@ -692,7 +1309,7 @@ export function DailyTaskManager() {
                   {filteredPlatforms.map((pt) => {
                     const category = getPlatformTargetCategory(pt, selectedDate, todayStr);
                     const isComplete = category === 'COMPLETED';
-                    const isUpdating = updatingPlatformId === pt.platform.id;
+                    const isUpdating = updatingPlatformId === `${selectedDate}-${pt.platform.id}`;
 
                     return (
                       <div
@@ -806,7 +1423,7 @@ export function DailyTaskManager() {
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => handleCardTargetStep(pt.platform.id, pt.targetCount, -1)}
+                              onClick={() => handleCardTargetStep(pt.platform.id, pt.targetCount, -1, selectedDate)}
                               disabled={isUpdating || pt.targetCount <= 0}
                               className="w-7 h-7 rounded-lg bg-[rgb(var(--muted))] hover:bg-[rgb(var(--border))] text-[rgb(var(--foreground))] flex items-center justify-center transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                               aria-label={`Decrease target for ${pt.platform.name}`}
@@ -818,7 +1435,7 @@ export function DailyTaskManager() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => handleCardTargetStep(pt.platform.id, pt.targetCount, 1)}
+                              onClick={() => handleCardTargetStep(pt.platform.id, pt.targetCount, 1, selectedDate)}
                               disabled={isUpdating}
                               className="w-7 h-7 rounded-lg bg-[rgb(var(--muted))] hover:bg-[rgb(var(--border))] text-[rgb(var(--foreground))] flex items-center justify-center transition-all active:scale-90 disabled:opacity-40 cursor-pointer"
                               aria-label={`Increase target for ${pt.platform.name}`}

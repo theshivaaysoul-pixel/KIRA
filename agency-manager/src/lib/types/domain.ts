@@ -430,12 +430,27 @@ export interface PlatformTargetDetail {
   completedContentIds: string[];
 }
 
+export interface DailyTargetDateItem {
+  date: string;
+  platform: Platform;
+  targetCount: number;
+  completedCount: number;
+  remaining: number;
+  percentage: number;
+  status: 'OVERDUE' | 'UPCOMING';
+  daysDifference: number;
+}
+
 export interface DailyContentTargetWithRelations extends DailyContentTarget {
   platforms: PlatformTargetDetail[];
   overallTarget: number;
   overallCompleted: number;
   overallRemaining: number;
   overallPercentage: number;
+  allOverdueTargets?: DailyTargetDateItem[];
+  allUpcomingTargets?: DailyTargetDateItem[];
+  allOverdueCount?: number;
+  allUpcomingCount?: number;
 }
 
 // ─── 11c. Content Platform Target Relationship ───────────────────────────────
